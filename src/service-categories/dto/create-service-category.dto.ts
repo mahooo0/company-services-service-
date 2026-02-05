@@ -16,7 +16,8 @@ export class CreateServiceCategoryDto {
   @IsNotEmpty()
   @MaxLength(50)
   @Matches(/^[a-z0-9_]+$/, {
-    message: 'Slug может содержать только латинские буквы, цифры и подчеркивания',
+    message:
+      'Slug может содержать только латинские буквы, цифры и подчеркивания',
   })
   slug: string;
 }
