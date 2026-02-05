@@ -1,8 +1,8 @@
 {
-  "name": "example-service",
+  "name": "company-services-service",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Company services management microservice",
+  "author": "4Friends",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

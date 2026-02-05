@@ -8,7 +8,7 @@ export class ConsulService implements OnModuleDestroy {
   private readonly consul: Consul;
   private readonly logger = new Logger(ConsulService.name);
   private serviceId: string;
-  private readonly serviceName = process.env.SERVICE_NAME || 'example-service';
+  private readonly serviceName = process.env.SERVICE_NAME || 'company-services-service';
   private _servicePort = Number(process.env.SERVICE_PORT) || 0;
 
   constructor() {

@@ -14,7 +14,7 @@ async function bootstrap() {
     .setTitle(`${process.env.SERVICE_NAME} API`)
     .setDescription(`API documentation for ${process.env.SERVICE_NAME}`)
     .setVersion('1.0')
-    .addTag('example')
+    .addTag('company-services')
     .build();
 
   const document = SwaggerModule.createDocument(app, configDocumentation);
