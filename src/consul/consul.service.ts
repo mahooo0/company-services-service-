@@ -8,7 +8,8 @@ export class ConsulService implements OnModuleDestroy {
   private readonly consul: Consul;
   private readonly logger = new Logger(ConsulService.name);
   private serviceId: string;
-  private readonly serviceName = process.env.SERVICE_NAME || 'company-services-service';
+  private readonly serviceName =
+    process.env.SERVICE_NAME || 'company-services-service';
   private _servicePort = Number(process.env.SERVICE_PORT) || 0;
 
   constructor() {
@@ -56,7 +57,7 @@ export class ConsulService implements OnModuleDestroy {
       port: this._servicePort,
       meta: metadata || {},
       check: {
-        http: `http://${process.env.SERVICE_HOST || 'localhost'}:${port}/health`,
+        http: `http://${process.env.HEALTH_CHECK_HOST || 'localhost'}:${port}/health`,
         interval: '10s',
         timeout: '5s',
         deregistercriticalserviceafter: '1m',
