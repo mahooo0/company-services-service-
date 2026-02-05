@@ -11,7 +11,7 @@ import {
   ServiceFiltersDto,
   ServiceResponseDto,
 } from './dto';
-import { Decimal } from 'prisma/__generated__/runtime/library';
+import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class ServicesService {

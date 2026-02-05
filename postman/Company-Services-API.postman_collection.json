@@ -1,0 +1,1284 @@
+{
+  "info": {
+    "_postman_id": "company-services-api-collection",
+    "name": "Company Services API",
+    "description": "API для управления услугами компаний (категории, типы, услуги, вариации)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3017",
+      "type": "string"
+    },
+    {
+      "key": "categoryId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "serviceTypeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "serviceId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "organizationId",
+      "value": "00000000-0000-0000-0000-000000000001",
+      "type": "string"
+    },
+    {
+      "key": "branchId",
+      "value": "00000000-0000-0000-0000-000000000002",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Service Categories",
+      "item": [
+        {
+          "name": "Get All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Categories with Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/with-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "with-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{categoryId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Category by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/slug/vet_clinics",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "slug", "vet_clinics"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('categoryId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тестова категорія\",\n  \"slug\": \"test_category\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Оновлена категорія\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{categoryId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{categoryId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Service Types",
+      "item": [
+        {
+          "name": "Get Active Types",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Active Types by Category",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types?categoryId={{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "{{categoryId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get All Types (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "all"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pending Types (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "pending"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Type by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{serviceTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{serviceTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Type by Slug",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/slug/dentistry",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "slug", "dentistry"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Type (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('serviceTypeId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тестовий тип послуги\",\n  \"slug\": \"test_service_type\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Suggest Type (User)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('pendingTypeId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Запропонований тип\",\n  \"slug\": \"suggested_type\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types/suggest",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "suggest"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Type (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Оновлений тип послуги\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{serviceTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{serviceTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Approve Type (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{pendingTypeId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{pendingTypeId}}", "approve"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Reject Type (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{pendingTypeId}}/reject",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{pendingTypeId}}", "reject"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Type (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{serviceTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{serviceTypeId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Services",
+      "item": [
+        {
+          "name": "Get All Services",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services with Filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services?organizationId={{organizationId}}&typeId={{serviceTypeId}}&isActive=true&page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"],
+              "query": [
+                {
+                  "key": "organizationId",
+                  "value": "{{organizationId}}"
+                },
+                {
+                  "key": "typeId",
+                  "value": "{{serviceTypeId}}"
+                },
+                {
+                  "key": "isActive",
+                  "value": "true"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Service by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services by Organization",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}", "services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Services by Branch",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/branches/{{branchId}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["branches", "{{branchId}}", "services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service (Simple)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('serviceId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Консультація ветеринара\",\n  \"description\": \"Загальна консультація лікаря\",\n  \"typeId\": \"{{serviceTypeId}}\",\n  \"price\": 500\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Service (With Variations)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('serviceWithVariationsId', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"name\": \"Стрижка собаки\",\n  \"description\": \"Професійна стрижка собак різних порід\",\n  \"typeId\": \"{{serviceTypeId}}\",\n  \"variations\": [\n    {\n      \"name\": \"Маленька собака (до 5 кг)\",\n      \"price\": 300\n    },\n    {\n      \"name\": \"Середня собака (5-15 кг)\",\n      \"price\": 500\n    },\n    {\n      \"name\": \"Велика собака (15-30 кг)\",\n      \"price\": 800\n    },\n    {\n      \"name\": \"Дуже велика собака (30+ кг)\",\n      \"price\": 1200\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Оновлена назва послуги\",\n  \"description\": \"Оновлений опис послуги\",\n  \"price\": 600\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service (Add Variations)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"variations\": [\n    {\n      \"name\": \"Нова варіація 1\",\n      \"price\": 400\n    },\n    {\n      \"name\": \"Нова варіація 2\",\n      \"price\": 700\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service (Deactivate)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Create Service Flow",
+      "description": "Полный workflow создания услуги: категория -> тип -> услуга с вариациями",
+      "item": [
+        {
+          "name": "1. Get Existing Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Available categories:', jsonData.length);",
+                  "// Save first category ID for use",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set('existingCategoryId', jsonData[0].id);",
+                  "    pm.collectionVariables.set('existingCategorySlug', jsonData[0].slug);",
+                  "    console.log('Using category:', jsonData[0].name);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Create New Category (Optional)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('workflowCategoryId', jsonData.id);",
+                  "    console.log('Created category with ID:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Догляд за тваринами\",\n  \"slug\": \"pet_care\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Types for Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Types in category:', jsonData.length);",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set('existingTypeId', jsonData[0].id);",
+                  "    console.log('Existing type:', jsonData[0].name);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types?categoryId={{existingCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"],
+              "query": [
+                {
+                  "key": "categoryId",
+                  "value": "{{existingCategoryId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create New Service Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('workflowTypeId', jsonData.id);",
+                  "    console.log('Created service type with ID:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Комплексний догляд\",\n  \"slug\": \"complex_care\",\n  \"categoryId\": \"{{workflowCategoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Create Service with Variations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('workflowServiceId', jsonData.id);",
+                  "    console.log('Created service with ID:', jsonData.id);",
+                  "    console.log('Variations count:', jsonData.variations ? jsonData.variations.length : 0);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"branchId\": \"{{branchId}}\",\n  \"name\": \"Комплексний догляд за собакою\",\n  \"description\": \"Включає купання, стрижку, чистку вух та обрізку кігтів\",\n  \"typeId\": \"{{workflowTypeId}}\",\n  \"variations\": [\n    {\n      \"name\": \"Базовий пакет\",\n      \"price\": 500\n    },\n    {\n      \"name\": \"Стандартний пакет\",\n      \"price\": 800\n    },\n    {\n      \"name\": \"Преміум пакет\",\n      \"price\": 1200\n    },\n    {\n      \"name\": \"VIP пакет (з SPA)\",\n      \"price\": 2000\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Get Created Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Service details:');",
+                  "console.log('- Name:', jsonData.name);",
+                  "console.log('- Type:', jsonData.type ? jsonData.type.name : 'N/A');",
+                  "console.log('- Category:', jsonData.type && jsonData.type.category ? jsonData.type.category.name : 'N/A');",
+                  "console.log('- Variations:', jsonData.variations ? jsonData.variations.length : 0);",
+                  "if (jsonData.variations) {",
+                  "    jsonData.variations.forEach(function(v) {",
+                  "        console.log('  - ' + v.name + ': ' + v.price + ' грн');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{workflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{workflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Add More Variations to Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Updated service variations:', jsonData.variations ? jsonData.variations.length : 0);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"variations\": [\n    {\n      \"name\": \"Економ пакет\",\n      \"price\": 300\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{workflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{workflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Services by Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Total services for organization:', jsonData.total || jsonData.length);",
+                  "if (jsonData.data) {",
+                  "    jsonData.data.forEach(function(s) {",
+                  "        console.log('- ' + s.name);",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}", "services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Cleanup - Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{workflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{workflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Cleanup - Delete Service Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{workflowTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{workflowTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Cleanup - Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{workflowCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{workflowCategoryId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Suggest Type Flow",
+      "description": "Workflow предложения и одобрения нового типа услуги",
+      "item": [
+        {
+          "name": "1. Get Category for Suggestion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set('suggestCategoryId', jsonData[0].id);",
+                  "    console.log('Will suggest type in category:', jsonData[0].name);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. User Suggests New Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('suggestedTypeId', jsonData.id);",
+                  "    console.log('Suggested type ID:', jsonData.id);",
+                  "    console.log('Status:', jsonData.status);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Нова унікальна послуга\",\n  \"slug\": \"new_unique_service\",\n  \"categoryId\": \"{{suggestCategoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types/suggest",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "suggest"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Admin Gets Pending Types",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Pending types count:', jsonData.length);",
+                  "jsonData.forEach(function(t) {",
+                  "    console.log('- ' + t.name + ' (status: ' + t.status + ')');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "pending"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Admin Approves Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Type approved!');",
+                  "console.log('New status:', jsonData.status);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{suggestedTypeId}}/approve",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{suggestedTypeId}}", "approve"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Verify Type is Active",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Type details:');",
+                  "console.log('- Name:', jsonData.name);",
+                  "console.log('- Status:', jsonData.status);",
+                  "pm.test('Status should be ACTIVE', function() {",
+                  "    pm.expect(jsonData.status).to.eql('ACTIVE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{suggestedTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{suggestedTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Cleanup - Delete Approved Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{suggestedTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{suggestedTypeId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Use Existing Seed Data",
+      "description": "Workflow использования уже существующих категорий и типов из seed",
+      "item": [
+        {
+          "name": "1. Get Grooming Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('groomingCategoryId', jsonData.id);",
+                  "console.log('Grooming category ID:', jsonData.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/slug/grooming",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "slug", "grooming"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get Haircut Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('haircutTypeId', jsonData.id);",
+                  "console.log('Haircut type ID:', jsonData.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/slug/haircut_trimming",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "slug", "haircut_trimming"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Create Grooming Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('groomingServiceId', jsonData.id);",
+                  "    console.log('Created grooming service:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Стрижка та тримінг собак\",\n  \"description\": \"Професійна стрижка та тримінг для всіх порід собак\",\n  \"typeId\": \"{{haircutTypeId}}\",\n  \"variations\": [\n    {\n      \"name\": \"Йоркширський терʼєр\",\n      \"price\": 400\n    },\n    {\n      \"name\": \"Шпіц\",\n      \"price\": 500\n    },\n    {\n      \"name\": \"Пудель (стандарт)\",\n      \"price\": 600\n    },\n    {\n      \"name\": \"Хаскі\",\n      \"price\": 800\n    },\n    {\n      \"name\": \"Золотистий ретрівер\",\n      \"price\": 900\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Get Full Service Details",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('=== SERVICE DETAILS ===');",
+                  "console.log('Name:', jsonData.name);",
+                  "console.log('Description:', jsonData.description);",
+                  "console.log('Type:', jsonData.type.name);",
+                  "console.log('Category:', jsonData.type.category.name);",
+                  "console.log('Variations:');",
+                  "jsonData.variations.forEach(function(v) {",
+                  "    console.log('  - ' + v.name + ': ' + v.price + ' грн');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{groomingServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{groomingServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Cleanup - Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{groomingServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{groomingServiceId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

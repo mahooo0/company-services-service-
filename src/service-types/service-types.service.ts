@@ -6,7 +6,7 @@ import {
 import { PrismaService } from '@/prisma/prisma.service';
 import { LogService } from '@/log/log.service';
 import { CreateServiceTypeDto, UpdateServiceTypeDto } from './dto';
-import { ServiceTypeStatus } from 'prisma/__generated__';
+import { ServiceTypeStatus } from '@prisma/client';
 
 @Injectable()
 export class ServiceTypesService {
