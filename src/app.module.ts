@@ -13,6 +13,8 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { LogModule } from './log/log.module';
 import { LoggerMiddleware } from '@/log/middlewares/logger.middleware';
+import { ServiceTypesModule } from './service-types/service-types.module';
+import { ServicesModule } from './services/services.module';
 
 @Module({
   imports: [
@@ -24,6 +26,8 @@ import { LoggerMiddleware } from '@/log/middlewares/logger.middleware';
     PrismaModule,
     RabbitmqModule,
     LogModule,
+    ServiceTypesModule,
+    ServicesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

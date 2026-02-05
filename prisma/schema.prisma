@@ -13,3 +13,62 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// Типы услуг
+model ServiceType {
+  id                String            @id @default(uuid())
+  name              String            @unique
+  status            ServiceTypeStatus @default(ACTIVE)
+  suggestedByUserId String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  services Service[]
+
+  @@map("service_types")
+}
+
+enum ServiceTypeStatus {
+  ACTIVE
+  PENDING
+  REJECTED
+}
+
+// Услуги
+model Service {
+  id             String   @id @default(uuid())
+  organizationId String
+  branchId       String?
+  name           String
+  description    String?
+  typeId         String
+  price          Decimal? @db.Decimal(10, 2)
+  imageId        String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  type       ServiceType        @relation(fields: [typeId], references: [id])
+  variations ServiceVariation[]
+
+  @@index([organizationId])
+  @@index([branchId])
+  @@index([typeId])
+  @@map("services")
+}
+
+// Вариации услуг
+model ServiceVariation {
+  id        String   @id @default(uuid())
+  serviceId String
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service Service @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@index([serviceId])
+  @@map("service_variations")
+}
