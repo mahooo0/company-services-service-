@@ -57,7 +57,7 @@ export class ConsulService implements OnModuleDestroy {
       port: this._servicePort,
       meta: metadata || {},
       check: {
-        http: `http://${process.env.HEALTH_CHECK_HOST || 'localhost'}:${port}/health`,
+        http: `http://${process.env.SERVICE_HOST || 'localhost'}:${port}/health`,
         interval: '10s',
         timeout: '5s',
         deregistercriticalserviceafter: '1m',
@@ -99,6 +99,37 @@ export class ConsulService implements OnModuleDestroy {
     } catch (err) {
       this.logger.error('Consul KV set error', err);
       return false;
+    }
+  }
+
+  async discoverService(serviceName: string): Promise<string | null> {
+    try {
+      const services = await this.consul.health.service({
+        service: serviceName,
+        passing: true, // Only return healthy services
+      });
+
+      if (!services || services.length === 0) {
+        this.logger.warn(
+          `No healthy instances found for service: ${serviceName}`,
+        );
+        return null;
+      }
+
+      // Use the first healthy service instance
+      const service = services[0];
+      const host = service.Service.Address || service.Node.Address;
+      const port = service.Service.Port;
+      const protocol =
+        service.Service.Meta?.secure === 'true' ? 'https' : 'http';
+
+      const serviceUrl = `${protocol}://${host}:${port}`;
+      this.logger.log(`Discovered service ${serviceName} at: ${serviceUrl}`);
+
+      return serviceUrl;
+    } catch (err) {
+      this.logger.error(`Service discovery error for ${serviceName}`, err);
+      return null;
     }
   }
 
