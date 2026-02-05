@@ -1,0 +1,115 @@
+services:
+  # Gateway service
+  gateway-service:
+    image: 4friends/gateway:latest
+    platform: linux/amd64
+    container_name: gateway-service-4friends
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - CONSUL_HOST=consul
+      - CONSUL_PORT=8500
+      - CONSUL_CONFIG_PREFIX=config
+      - JAVA_OPTS=-Xms256m -Xmx512m
+    depends_on:
+      - consul
+    restart: unless-stopped
+    networks:
+      - backend
+    extra_hosts:
+      - "localhost:host-gateway"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Consul service
+  consul:
+    image: hashicorp/consul:latest
+    container_name: consul-4friends
+    ports:
+      - "8500:8500"
+      - "8600:8600/udp"
+    command: agent -server -ui -node=server-1 -bootstrap-expect=1 -client=0.0.0.0
+    volumes:
+      - consul-data:/consul/data
+    networks:
+      - backend
+    extra_hosts:
+      - "localhost:host-gateway"
+    healthcheck:
+      test: ["CMD", "consul", "info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # PostgreSQL service
+  postgres:
+    image: postgres:16
+    container_name: postgres-4friends
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  # RabbitMQ service
+  rabbitmq:
+    image: rabbitmq:4.0.5-management
+    container_name: rabbitmq-4friends
+    ports:
+      - "5672:5672"   # AMQP protocol port
+      - "15672:15672" # Management UI port
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Redis service
+  redis:
+    container_name: redis-4friends
+    image: redis:6.2
+    restart: always
+    environment:
+      - REDIS_PASSWORD=pass123456
+    ports:
+      - 6379:6379
+    command: redis-server --requirepass pass123456
+    volumes:
+      - redis_data:/data
+    networks:
+      - backend
+
+volumes:
+  consul-data:
+  postgres-data:
+  rabbitmq-data:
+  redis_data:
+
+networks:
+  backend:
+    driver: bridge
