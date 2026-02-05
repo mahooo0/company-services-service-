@@ -78,7 +78,7 @@ export class ServicesService {
     const totalPages = Math.ceil(total / limit!);
 
     return {
-      data: services.map((s) => this.toResponseDto(s)),
+      data: services.map(s => this.toResponseDto(s)),
       total,
       page: page!,
       limit: limit!,
@@ -146,7 +146,7 @@ export class ServicesService {
         imageId: dto.imageId,
         variations: dto.variations
           ? {
-              create: dto.variations.map((v) => ({
+              create: dto.variations.map(v => ({
                 name: v.name,
                 price: new Decimal(v.price),
               })),
@@ -235,7 +235,12 @@ export class ServicesService {
         name: dto.name,
         description: dto.description,
         typeId: dto.typeId,
-        price: dto.price !== undefined ? (dto.price ? new Decimal(dto.price) : null) : undefined,
+        price:
+          dto.price !== undefined
+            ? dto.price
+              ? new Decimal(dto.price)
+              : null
+            : undefined,
         imageId: dto.imageId,
         isActive: dto.isActive,
       },

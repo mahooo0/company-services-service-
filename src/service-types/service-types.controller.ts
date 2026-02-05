@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   ParseUUIDPipe,
   HttpCode,
   HttpStatus,
@@ -15,6 +16,7 @@ import {
   ApiOperation,
   ApiResponse,
   ApiParam,
+  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { ServiceTypesService } from './service-types.service';
@@ -32,24 +34,34 @@ export class ServiceTypesController {
 
   @Get()
   @ApiOperation({ summary: 'Получить все активные типы услуг' })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    description: 'Фильтр по категории',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список активных типов услуг',
     type: [ServiceTypeResponseDto],
   })
-  async findAllActive() {
-    return this.serviceTypesService.findAllActive();
+  async findAllActive(@Query('categoryId') categoryId?: string) {
+    return this.serviceTypesService.findAllActive(categoryId);
   }
 
   @Get('all')
   @ApiOperation({ summary: 'Получить все типы услуг (админ)' })
+  @ApiQuery({
+    name: 'categoryId',
+    required: false,
+    description: 'Фильтр по категории',
+  })
   @ApiResponse({
     status: 200,
     description: 'Список всех типов услуг',
     type: [ServiceTypeResponseDto],
   })
-  async findAll() {
-    return this.serviceTypesService.findAll();
+  async findAll(@Query('categoryId') categoryId?: string) {
+    return this.serviceTypesService.findAll(categoryId);
   }
 
   @Get('pending')
@@ -61,6 +73,19 @@ export class ServiceTypesController {
   })
   async findPending() {
     return this.serviceTypesService.findPending();
+  }
+
+  @Get('slug/:slug')
+  @ApiOperation({ summary: 'Получить тип услуги по slug' })
+  @ApiParam({ name: 'slug', description: 'Slug типа услуги' })
+  @ApiResponse({
+    status: 200,
+    description: 'Тип услуги',
+    type: ServiceTypeResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Тип услуги не найден' })
+  async findBySlug(@Param('slug') slug: string) {
+    return this.serviceTypesService.findBySlug(slug);
   }
 
   @Get(':id')
@@ -83,7 +108,8 @@ export class ServiceTypesController {
     description: 'Тип услуги создан',
     type: ServiceTypeResponseDto,
   })
-  @ApiResponse({ status: 409, description: 'Тип услуги уже существует' })
+  @ApiResponse({ status: 404, description: 'Категория не найдена' })
+  @ApiResponse({ status: 409, description: 'Тип услуги/slug уже существует' })
   async create(@Body() dto: CreateServiceTypeDto) {
     return this.serviceTypesService.create(dto);
   }
@@ -95,7 +121,8 @@ export class ServiceTypesController {
     description: 'Тип услуги предложен',
     type: ServiceTypeResponseDto,
   })
-  @ApiResponse({ status: 409, description: 'Тип услуги уже существует' })
+  @ApiResponse({ status: 404, description: 'Категория не найдена' })
+  @ApiResponse({ status: 409, description: 'Slug уже используется' })
   async suggest(@Body() dto: CreateServiceTypeDto) {
     // TODO: получить userId из токена
     return this.serviceTypesService.suggest(dto);
@@ -110,7 +137,10 @@ export class ServiceTypesController {
     type: ServiceTypeResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Тип услуги не найден' })
-  @ApiResponse({ status: 409, description: 'Тип услуги с таким названием уже существует' })
+  @ApiResponse({
+    status: 409,
+    description: 'Тип услуги/slug уже существует',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateServiceTypeDto,
@@ -154,7 +184,10 @@ export class ServiceTypesController {
   @ApiParam({ name: 'id', description: 'ID типа услуги' })
   @ApiResponse({ status: 204, description: 'Тип услуги удален' })
   @ApiResponse({ status: 404, description: 'Тип услуги не найден' })
-  @ApiResponse({ status: 409, description: 'Невозможно удалить: есть связанные услуги' })
+  @ApiResponse({
+    status: 409,
+    description: 'Невозможно удалить: есть связанные услуги',
+  })
   async remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.serviceTypesService.remove(id);
   }

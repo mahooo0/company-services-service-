@@ -14,17 +14,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Категории типов услуг (vetClinicsFilter, groomingFilter, etc.)
+model ServiceCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  types ServiceType[]
+
+  @@map("service_categories")
+}
+
 // Типы услуг
 model ServiceType {
   id                String            @id @default(uuid())
-  name              String            @unique
+  name              String
+  slug              String            @unique
+  categoryId        String
   status            ServiceTypeStatus @default(ACTIVE)
   suggestedByUserId String?
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
 
+  category ServiceCategory @relation(fields: [categoryId], references: [id])
   services Service[]
 
+  @@unique([name, categoryId])
+  @@index([categoryId])
   @@map("service_types")
 }
 

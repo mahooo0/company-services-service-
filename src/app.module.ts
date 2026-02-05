@@ -13,6 +13,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RabbitmqModule } from './rabbitmq/rabbitmq.module';
 import { LogModule } from './log/log.module';
 import { LoggerMiddleware } from '@/log/middlewares/logger.middleware';
+import { ServiceCategoriesModule } from './service-categories/service-categories.module';
 import { ServiceTypesModule } from './service-types/service-types.module';
 import { ServicesModule } from './services/services.module';
 
@@ -26,6 +27,7 @@ import { ServicesModule } from './services/services.module';
     PrismaModule,
     RabbitmqModule,
     LogModule,
+    ServiceCategoriesModule,
     ServiceTypesModule,
     ServicesModule,
   ],

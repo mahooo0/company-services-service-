@@ -13,7 +13,9 @@ import {
 import { Type } from 'class-transformer';
 
 export class UpdateServiceVariationDto {
-  @ApiPropertyOptional({ description: 'ID вариации (для обновления существующей)' })
+  @ApiPropertyOptional({
+    description: 'ID вариации (для обновления существующей)',
+  })
   @IsUUID()
   @IsOptional()
   id?: string;

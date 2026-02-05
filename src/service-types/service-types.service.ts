@@ -16,16 +16,25 @@ export class ServiceTypesService {
   ) {}
 
   // Получить все активные типы (для пользователей)
-  async findAllActive() {
+  async findAllActive(categoryId?: string) {
+    const where: any = { status: ServiceTypeStatus.ACTIVE };
+    if (categoryId) where.categoryId = categoryId;
+
     return this.prisma.serviceType.findMany({
-      where: { status: ServiceTypeStatus.ACTIVE },
+      where,
+      include: { category: true },
       orderBy: { name: 'asc' },
     });
   }
 
   // Получить все типы (для админа)
-  async findAll() {
+  async findAll(categoryId?: string) {
+    const where: any = {};
+    if (categoryId) where.categoryId = categoryId;
+
     return this.prisma.serviceType.findMany({
+      where,
+      include: { category: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -34,6 +43,7 @@ export class ServiceTypesService {
   async findPending() {
     return this.prisma.serviceType.findMany({
       where: { status: ServiceTypeStatus.PENDING },
+      include: { category: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -42,6 +52,7 @@ export class ServiceTypesService {
   async findOne(id: string) {
     const serviceType = await this.prisma.serviceType.findUnique({
       where: { id },
+      include: { category: true },
     });
 
     if (!serviceType) {
@@ -51,21 +62,64 @@ export class ServiceTypesService {
     return serviceType;
   }
 
-  // Создать тип (админ)
-  async create(dto: CreateServiceTypeDto) {
-    const existing = await this.prisma.serviceType.findUnique({
-      where: { name: dto.name },
+  // Получить тип по slug
+  async findBySlug(slug: string) {
+    const serviceType = await this.prisma.serviceType.findUnique({
+      where: { slug },
+      include: { category: true },
     });
 
-    if (existing) {
-      throw new ConflictException(`Тип услуги "${dto.name}" уже существует`);
+    if (!serviceType) {
+      throw new NotFoundException(`Тип услуги со slug "${slug}" не найден`);
+    }
+
+    return serviceType;
+  }
+
+  // Создать тип (админ)
+  async create(dto: CreateServiceTypeDto) {
+    // Проверяем существование категории
+    const category = await this.prisma.serviceCategory.findUnique({
+      where: { id: dto.categoryId },
+    });
+
+    if (!category) {
+      throw new NotFoundException(
+        `Категория с ID ${dto.categoryId} не найдена`,
+      );
+    }
+
+    // Проверяем уникальность slug
+    const existingBySlug = await this.prisma.serviceType.findUnique({
+      where: { slug: dto.slug },
+    });
+
+    if (existingBySlug) {
+      throw new ConflictException(`Slug "${dto.slug}" уже используется`);
+    }
+
+    // Проверяем уникальность name в категории
+    const existingByName = await this.prisma.serviceType.findFirst({
+      where: {
+        name: dto.name,
+        categoryId: dto.categoryId,
+      },
+    });
+
+    if (existingByName) {
+      throw new ConflictException(
+        `Тип услуги "${dto.name}" уже существует в этой категории`,
+      );
     }
 
     const serviceType = await this.prisma.serviceType.create({
       data: {
         name: dto.name,
+        slug: dto.slug,
+        categoryId: dto.categoryId,
         status: ServiceTypeStatus.ACTIVE,
       },
+      include: { category: true },
     });
 
     this.logger.log(`Создан тип услуги: ${serviceType.name}`);
@@ -74,20 +128,35 @@ export class ServiceTypesService {
 
   // Предложить тип (пользователь)
   async suggest(dto: CreateServiceTypeDto, userId?: string) {
-    const existing = await this.prisma.serviceType.findUnique({
-      where: { name: dto.name },
+    // Проверяем существование категории
+    const category = await this.prisma.serviceCategory.findUnique({
+      where: { id: dto.categoryId },
     });
 
-    if (existing) {
-      throw new ConflictException(`Тип услуги "${dto.name}" уже существует`);
+    if (!category) {
+      throw new NotFoundException(
+        `Категория с ID ${dto.categoryId} не найдена`,
+      );
+    }
+
+    // Проверяем уникальность slug
+    const existingBySlug = await this.prisma.serviceType.findUnique({
+      where: { slug: dto.slug },
+    });
+
+    if (existingBySlug) {
+      throw new ConflictException(`Slug "${dto.slug}" уже используется`);
     }
 
     const serviceType = await this.prisma.serviceType.create({
       data: {
         name: dto.name,
+        slug: dto.slug,
+        categoryId: dto.categoryId,
         status: ServiceTypeStatus.PENDING,
         suggestedByUserId: userId,
       },
+      include: { category: true },
     });
 
     this.logger.log(`Предложен тип услуги: ${serviceType.name}`);
@@ -96,24 +165,44 @@ export class ServiceTypesService {
 
   // Обновить тип (админ)
   async update(id: string, dto: UpdateServiceTypeDto) {
-    await this.findOne(id);
+    const existing = await this.findOne(id);
 
-    if (dto.name) {
-      const existing = await this.prisma.serviceType.findFirst({
+    // Проверяем slug если обновляется
+    if (dto.slug && dto.slug !== existing.slug) {
+      const existingBySlug = await this.prisma.serviceType.findFirst({
         where: {
-          name: dto.name,
+          slug: dto.slug,
           NOT: { id },
         },
       });
 
-      if (existing) {
-        throw new ConflictException(`Тип услуги "${dto.name}" уже существует`);
+      if (existingBySlug) {
+        throw new ConflictException(`Slug "${dto.slug}" уже используется`);
+      }
+    }
+
+    // Проверяем name в категории если обновляется
+    if (dto.name) {
+      const categoryId = dto.categoryId || existing.categoryId;
+      const existingByName = await this.prisma.serviceType.findFirst({
+        where: {
+          name: dto.name,
+          categoryId,
+          NOT: { id },
+        },
+      });
+
+      if (existingByName) {
+        throw new ConflictException(
+          `Тип услуги "${dto.name}" уже существует в этой категории`,
+        );
       }
     }
 
     const serviceType = await this.prisma.serviceType.update({
       where: { id },
       data: dto,
+      include: { category: true },
     });
 
     this.logger.log(`Обновлен тип услуги: ${serviceType.name}`);
@@ -131,6 +220,7 @@ export class ServiceTypesService {
     const updated = await this.prisma.serviceType.update({
       where: { id },
       data: { status: ServiceTypeStatus.ACTIVE },
+      include: { category: true },
     });
 
     this.logger.log(`Принят тип услуги: ${updated.name}`);
@@ -148,6 +238,7 @@ export class ServiceTypesService {
     const updated = await this.prisma.serviceType.update({
       where: { id },
       data: { status: ServiceTypeStatus.REJECTED },
+      include: { category: true },
     });
 
     this.logger.log(`Отклонен тип услуги: ${updated.name}`);

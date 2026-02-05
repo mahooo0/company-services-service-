@@ -1,5 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsUUID, IsOptional, IsBoolean, IsInt, Min, Max } from 'class-validator';
+import {
+  IsUUID,
+  IsOptional,
+  IsBoolean,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 export class ServiceFiltersDto {
