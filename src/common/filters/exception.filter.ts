@@ -22,9 +22,18 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    let message: string | string[] =
+      exception instanceof Error ? exception.message : String(exception);
+
+    if (exception instanceof HttpException) {
+      const res = exception.getResponse();
+      if (typeof res === 'object' && res !== null && 'message' in res) {
+        message = (res as any).message;
+      }
+    }
+
     const errorResponse = {
-      message:
-        exception instanceof Error ? exception.message : String(exception),
+      message,
       error: HttpStatus[status],
       statusCode: status,
       timestamp: new Date().toISOString(),

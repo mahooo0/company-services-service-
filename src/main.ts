@@ -3,7 +3,7 @@ import { AppModule } from './app.module';
 import { ConsulService } from './consul/consul.service';
 import { LogService } from '@/log/log.service';
 import { GlobalExceptionFilter } from '@/common/filters/exception.filter';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -11,7 +11,11 @@ async function bootstrap() {
 
   // Встановлення глобального префіксу API (виключаючи health та api-docs)
   app.setGlobalPrefix('api/v1', {
-    exclude: ['health', 'api-docs', 'api-docs-json'],
+    exclude: [
+      { path: 'health', method: RequestMethod.GET },
+      'api-docs',
+      'api-docs-json',
+    ],
   });
 
   // Налаштування Swagger
@@ -48,7 +52,7 @@ async function bootstrap() {
       hasSwagger: 'true',
       swaggerPath: 'api-docs-json',
     },
-    '/api/v1/health',
+    '/health',
   );
 
   log.log(`Application started on port: ${port}`);

@@ -78,8 +78,13 @@ export class ConsulService implements OnModuleDestroy {
       this.logger.log(`Service deregistered from Consul: ${this.serviceName}`);
     } catch (err: any) {
       // Ignore 404 errors (service already deregistered)
-      if (err?.response?.statusCode === 404 || err?.message?.includes('not found')) {
-        this.logger.warn(`Service ${this.serviceId} already deregistered from Consul`);
+      if (
+        err?.response?.statusCode === 404 ||
+        err?.message?.includes('not found')
+      ) {
+        this.logger.warn(
+          `Service ${this.serviceId} already deregistered from Consul`,
+        );
       } else {
         this.logger.error('Consul deregistration error', err);
       }
