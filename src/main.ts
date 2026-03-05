@@ -42,10 +42,14 @@ async function bootstrap() {
   consulService.servicePort = port;
 
   // Додавання метаданих Swagger до реєстрації сервісу
-  consulService.registerService(port, {
-    hasSwagger: 'true',
-    swaggerPath: 'api-docs-json',
-  });
+  consulService.registerService(
+    port,
+    {
+      hasSwagger: 'true',
+      swaggerPath: 'api-docs-json',
+    },
+    '/api/v1/health',
+  );
 
   log.log(`Application started on port: ${port}`);
 

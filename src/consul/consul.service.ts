@@ -49,6 +49,7 @@ export class ConsulService implements OnModuleDestroy {
   async registerService(
     port: number,
     metadata?: { hasSwagger?: string; swaggerPath?: string },
+    healthPath: string = '/health',
   ) {
     const serviceDef = {
       id: this.serviceId,
@@ -57,7 +58,7 @@ export class ConsulService implements OnModuleDestroy {
       port: this._servicePort,
       meta: metadata || {},
       check: {
-        http: `http://${process.env.SERVICE_HOST || 'localhost'}:${port}/health`,
+        http: `http://${process.env.SERVICE_HOST || 'localhost'}:${port}${healthPath}`,
         interval: '10s',
         timeout: '5s',
         deregistercriticalserviceafter: '1m',
@@ -75,8 +76,13 @@ export class ConsulService implements OnModuleDestroy {
     try {
       await this.consul.agent.service.deregister(this.serviceId);
       this.logger.log(`Service deregistered from Consul: ${this.serviceName}`);
-    } catch (err) {
-      this.logger.error('Consul deregistration error', err);
+    } catch (err: any) {
+      // Ignore 404 errors (service already deregistered)
+      if (err?.response?.statusCode === 404 || err?.message?.includes('not found')) {
+        this.logger.warn(`Service ${this.serviceId} already deregistered from Consul`);
+      } else {
+        this.logger.error('Consul deregistration error', err);
+      }
     }
   }
 
