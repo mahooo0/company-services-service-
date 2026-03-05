@@ -9,6 +9,9 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Встановлення глобального префіксу API
+  app.setGlobalPrefix('api/v1');
+
   // Налаштування Swagger
   const configDocumentation = new DocumentBuilder()
     .setTitle(`${process.env.SERVICE_NAME} API`)
