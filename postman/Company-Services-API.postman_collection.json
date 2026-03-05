@@ -35,6 +35,26 @@
       "key": "branchId",
       "value": "00000000-0000-0000-0000-000000000002",
       "type": "string"
+    },
+    {
+      "key": "storageBaseUrl",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "imageId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "imagePublicUrl",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "accountId",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -569,6 +589,88 @@
           "response": []
         },
         {
+          "name": "Create Service (With Image)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('serviceId', jsonData.id);",
+                  "    console.log('Created service with image, ID:', jsonData.id);",
+                  "    console.log('imageId:', jsonData.imageId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Послуга з зображенням\",\n  \"description\": \"Послуга з прикріпленим зображенням\",\n  \"typeId\": \"{{serviceTypeId}}\",\n  \"price\": 500,\n  \"imageId\": \"{{imageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service (Set Image)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": \"{{imageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Service (Remove Image)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "Update Service",
           "request": {
             "method": "PUT",
@@ -643,6 +745,132 @@
               "raw": "{{baseUrl}}/services/{{serviceId}}",
               "host": ["{{baseUrl}}"],
               "path": ["services", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Storage Integration",
+      "description": "Standalone requests to storage-service for image upload/download/delete",
+      "item": [
+        {
+          "name": "Upload Service Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('imageId', jsonData.id);",
+                  "    console.log('Uploaded image ID:', jsonData.id);",
+                  "}",
+                  "if (jsonData.publicUrl) {",
+                  "    pm.collectionVariables.set('imagePublicUrl', jsonData.publicUrl);",
+                  "    console.log('Public URL:', jsonData.publicUrl);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "fileName",
+                  "value": "service-image.png",
+                  "type": "text"
+                },
+                {
+                  "key": "entityType",
+                  "value": "SERVICE_IMAGE",
+                  "type": "text"
+                },
+                {
+                  "key": "entityId",
+                  "value": "{{serviceId}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/upload",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attachment by ID",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/attachment/{{imageId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "attachment", "{{imageId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Attachments for Service",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/attachments/SERVICE_IMAGE/{{serviceId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "attachments", "SERVICE_IMAGE", "{{serviceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Attachment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/{{imageId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "{{imageId}}"]
             }
           },
           "response": []
@@ -1274,6 +1502,1445 @@
               "raw": "{{baseUrl}}/services/{{groomingServiceId}}",
               "host": ["{{baseUrl}}"],
               "path": ["services", "{{groomingServiceId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Create Service WITH Image",
+      "description": "Full cross-service workflow: create category → type → upload image to storage → create service with imageId → verify → cleanup",
+      "item": [
+        {
+          "name": "1. Get Existing Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Available categories:', jsonData.length);",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set('imgWorkflowCategoryId', jsonData[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('imgWorkflowCategoryId', jsonData.id);",
+                  "    console.log('Created category:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Категорія для тесту з картинкою\",\n  \"slug\": \"img_workflow_category\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Create Service Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('imgWorkflowTypeId', jsonData.id);",
+                  "    console.log('Created type:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тип для тесту з картинкою\",\n  \"slug\": \"img_workflow_type\",\n  \"categoryId\": \"{{imgWorkflowCategoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Upload Image to Storage",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('imgWorkflowImageId', jsonData.id);",
+                  "    console.log('Uploaded image ID:', jsonData.id);",
+                  "}",
+                  "if (jsonData.publicUrl) {",
+                  "    console.log('Public URL:', jsonData.publicUrl);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "fileName",
+                  "value": "service-image.png",
+                  "type": "text"
+                },
+                {
+                  "key": "entityType",
+                  "value": "SERVICE_IMAGE",
+                  "type": "text"
+                },
+                {
+                  "key": "entityId",
+                  "value": "pending-service",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/upload",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Verify Upload - Get Attachment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Attachment ID matches', function () {",
+                  "    pm.expect(jsonData.id).to.eql(pm.collectionVariables.get('imgWorkflowImageId'));",
+                  "});",
+                  "console.log('Attachment verified:', jsonData.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/attachment/{{imgWorkflowImageId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "attachment", "{{imgWorkflowImageId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Create Service with imageId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('imgWorkflowServiceId', jsonData.id);",
+                  "    console.log('Created service with image:', jsonData.id);",
+                  "}",
+                  "pm.test('imageId is not null', function () {",
+                  "    pm.expect(jsonData.imageId).to.not.be.null;",
+                  "});",
+                  "pm.test('imageId matches uploaded image', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('imgWorkflowImageId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Послуга з картинкою (workflow)\",\n  \"description\": \"Тестова послуга з прикріпленим зображенням\",\n  \"typeId\": \"{{imgWorkflowTypeId}}\",\n  \"price\": 750,\n  \"imageId\": \"{{imgWorkflowImageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Get Service - Verify imageId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId matches uploaded image', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('imgWorkflowImageId'));",
+                  "});",
+                  "console.log('Service imageId:', jsonData.imageId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{imgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{imgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Attachments for Service (cross-check storage)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "console.log('Attachments for service:', jsonData.length);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/attachments/SERVICE_IMAGE/{{imgWorkflowServiceId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "attachments", "SERVICE_IMAGE", "{{imgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Cleanup - Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{imgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{imgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Cleanup - Delete Image from Storage",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/{{imgWorkflowImageId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "{{imgWorkflowImageId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Cleanup - Delete Service Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{imgWorkflowTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{imgWorkflowTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "12. Cleanup - Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{imgWorkflowCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{imgWorkflowCategoryId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Create Service WITHOUT Image",
+      "description": "Workflow creating a service without any image — verifies imageId is null",
+      "item": [
+        {
+          "name": "1. Get Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Available categories:', jsonData.length);",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set('noImgWorkflowCategoryId', jsonData[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('noImgWorkflowCategoryId', jsonData.id);",
+                  "    console.log('Created category:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Категорія для тесту без картинки\",\n  \"slug\": \"no_img_workflow_category\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Create Service Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('noImgWorkflowTypeId', jsonData.id);",
+                  "    console.log('Created type:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тип для тесту без картинки\",\n  \"slug\": \"no_img_workflow_type\",\n  \"categoryId\": \"{{noImgWorkflowCategoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create Service WITHOUT imageId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('noImgWorkflowServiceId', jsonData.id);",
+                  "    console.log('Created service without image:', jsonData.id);",
+                  "}",
+                  "pm.test('imageId is null', function () {",
+                  "    pm.expect(jsonData.imageId).to.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Послуга без картинки (workflow)\",\n  \"description\": \"Тестова послуга без зображення\",\n  \"typeId\": \"{{noImgWorkflowTypeId}}\",\n  \"price\": 400\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get Service - Verify imageId is null",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId is null', function () {",
+                  "    pm.expect(jsonData.imageId).to.be.null;",
+                  "});",
+                  "console.log('Service imageId:', jsonData.imageId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{noImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{noImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Cleanup - Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{noImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{noImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Cleanup - Delete Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{noImgWorkflowTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{noImgWorkflowTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Cleanup - Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{noImgWorkflowCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{noImgWorkflowCategoryId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Add Image to Existing Service",
+      "description": "Full lifecycle: create without image → add image → replace image → remove image → cleanup",
+      "item": [
+        {
+          "name": "1. Get Categories",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "console.log('Available categories:', jsonData.length);",
+                  "if (jsonData.length > 0) {",
+                  "    pm.collectionVariables.set('addImgWorkflowCategoryId', jsonData[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('addImgWorkflowCategoryId', jsonData.id);",
+                  "    console.log('Created category:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Категорія для тесту додавання картинки\",\n  \"slug\": \"add_img_workflow_category\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Create Service Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('addImgWorkflowTypeId', jsonData.id);",
+                  "    console.log('Created type:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Тип для тесту додавання картинки\",\n  \"slug\": \"add_img_workflow_type\",\n  \"categoryId\": \"{{addImgWorkflowCategoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create Service (no image)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('addImgWorkflowServiceId', jsonData.id);",
+                  "    console.log('Created service (no image):', jsonData.id);",
+                  "}",
+                  "pm.test('imageId is null', function () {",
+                  "    pm.expect(jsonData.imageId).to.be.null;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Послуга для тесту додавання картинки\",\n  \"description\": \"Спочатку без зображення, потім додамо\",\n  \"typeId\": \"{{addImgWorkflowTypeId}}\",\n  \"price\": 600\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Verify - No Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId is null', function () {",
+                  "    pm.expect(jsonData.imageId).to.be.null;",
+                  "});",
+                  "console.log('Confirmed: no image on service');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Upload Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('addImgWorkflowImageId1', jsonData.id);",
+                  "    console.log('Uploaded first image:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "fileName",
+                  "value": "service-image-1.png",
+                  "type": "text"
+                },
+                {
+                  "key": "entityType",
+                  "value": "SERVICE_IMAGE",
+                  "type": "text"
+                },
+                {
+                  "key": "entityId",
+                  "value": "{{addImgWorkflowServiceId}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/upload",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Update Service - Add Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId is set', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('addImgWorkflowImageId1'));",
+                  "});",
+                  "console.log('Image added to service:', jsonData.imageId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": \"{{addImgWorkflowImageId1}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Verify - Image Added",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId matches first upload', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('addImgWorkflowImageId1'));",
+                  "});",
+                  "console.log('Verified imageId:', jsonData.imageId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "9. Upload Replacement Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('addImgWorkflowImageId2', jsonData.id);",
+                  "    console.log('Uploaded replacement image:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "fileName",
+                  "value": "service-image-2.png",
+                  "type": "text"
+                },
+                {
+                  "key": "entityType",
+                  "value": "SERVICE_IMAGE",
+                  "type": "text"
+                },
+                {
+                  "key": "entityId",
+                  "value": "{{addImgWorkflowServiceId}}",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/upload",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "10. Update Service - Replace Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId changed to new image', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('addImgWorkflowImageId2'));",
+                  "});",
+                  "pm.test('imageId is different from first image', function () {",
+                  "    pm.expect(jsonData.imageId).to.not.eql(pm.collectionVariables.get('addImgWorkflowImageId1'));",
+                  "});",
+                  "console.log('Replaced image:', jsonData.imageId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": \"{{addImgWorkflowImageId2}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "11. Update Service - Remove Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId is null', function () {",
+                  "    pm.expect(jsonData.imageId).to.be.null;",
+                  "});",
+                  "console.log('Image removed from service');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "12. Verify - Image Removed",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId is null', function () {",
+                  "    pm.expect(jsonData.imageId).to.be.null;",
+                  "});",
+                  "console.log('Confirmed: image removed');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "13. Cleanup - Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{addImgWorkflowServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{addImgWorkflowServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "14. Cleanup - Delete First Image from Storage",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/{{addImgWorkflowImageId1}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "{{addImgWorkflowImageId1}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "15. Cleanup - Delete Second Image from Storage",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/{{addImgWorkflowImageId2}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "{{addImgWorkflowImageId2}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "16. Cleanup - Delete Service Type",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/{{addImgWorkflowTypeId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "{{addImgWorkflowTypeId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "17. Cleanup - Delete Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{addImgWorkflowCategoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{addImgWorkflowCategoryId}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "WORKFLOW - Service Image with Seed Data",
+      "description": "Uses pre-existing seed data (grooming category, haircut type) — no category/type creation needed",
+      "item": [
+        {
+          "name": "1. Get Grooming Category by Slug",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "console.log('Grooming category ID:', jsonData.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/slug/grooming",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "slug", "grooming"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get Haircut Type by Slug",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('seedImgTypeId', jsonData.id);",
+                  "console.log('Haircut type ID:', jsonData.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/slug/haircut_trimming",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "slug", "haircut_trimming"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Upload Service Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('seedImgImageId', jsonData.id);",
+                  "    console.log('Uploaded image:', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                },
+                {
+                  "key": "fileName",
+                  "value": "grooming-service.png",
+                  "type": "text"
+                },
+                {
+                  "key": "entityType",
+                  "value": "SERVICE_IMAGE",
+                  "type": "text"
+                },
+                {
+                  "key": "entityId",
+                  "value": "seed-grooming-service",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/upload",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "upload"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Create Service with Image + Seed Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('seedImgServiceId', jsonData.id);",
+                  "    console.log('Created service:', jsonData.id);",
+                  "}",
+                  "pm.test('imageId is set', function () {",
+                  "    pm.expect(jsonData.imageId).to.not.be.null;",
+                  "});",
+                  "pm.test('imageId matches uploaded', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('seedImgImageId'));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Грумінг з фото (seed data)\",\n  \"description\": \"Послуга з використанням seed категорії та типу, з зображенням\",\n  \"typeId\": \"{{seedImgTypeId}}\",\n  \"price\": 550,\n  \"imageId\": \"{{seedImgImageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Get Service - Full Details (verify imageId)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('imageId matches', function () {",
+                  "    pm.expect(jsonData.imageId).to.eql(pm.collectionVariables.get('seedImgImageId'));",
+                  "});",
+                  "console.log('=== SERVICE WITH SEED DATA ===');",
+                  "console.log('Name:', jsonData.name);",
+                  "console.log('Type:', jsonData.type ? jsonData.type.name : 'N/A');",
+                  "console.log('imageId:', jsonData.imageId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{seedImgServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{seedImgServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Get Attachments for Service (cross-check storage)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "console.log('Attachments found:', jsonData.length);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/attachments/SERVICE_IMAGE/{{seedImgServiceId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "attachments", "SERVICE_IMAGE", "{{seedImgServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Cleanup - Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{seedImgServiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{seedImgServiceId}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Cleanup - Delete Image from Storage",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "x-account-id",
+                "value": "{{accountId}}",
+                "disabled": true
+              }
+            ],
+            "url": {
+              "raw": "{{storageBaseUrl}}/storage/{{seedImgImageId}}",
+              "host": ["{{storageBaseUrl}}"],
+              "path": ["storage", "{{seedImgImageId}}"]
             }
           },
           "response": []
