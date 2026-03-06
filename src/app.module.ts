@@ -16,6 +16,9 @@ import { LoggerMiddleware } from '@/log/middlewares/logger.middleware';
 import { ServiceCategoriesModule } from './service-categories/service-categories.module';
 import { ServiceTypesModule } from './service-types/service-types.module';
 import { ServicesModule } from './services/services.module';
+import { LocationsModule } from './locations/locations.module';
+import { SpecialistsModule } from './specialists/specialists.module';
+import { SchedulesModule } from './schedules/schedules.module';
 
 @Module({
   imports: [
@@ -30,6 +33,9 @@ import { ServicesModule } from './services/services.module';
     ServiceCategoriesModule,
     ServiceTypesModule,
     ServicesModule,
+    LocationsModule,
+    SpecialistsModule,
+    SchedulesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

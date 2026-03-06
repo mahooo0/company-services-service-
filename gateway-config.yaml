@@ -1,0 +1,301 @@
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: auth
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/auth/**
+              filters:
+                - StripPrefix=2
+                - OptionalAuthFilter
+            - id: users
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/users/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: admin
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/admin/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: accounts
+              uri: lb://user-service
+              predicates:
+                - Path=/api/v1/accounts/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: customer
+              uri: lb://customer-service
+              predicates:
+                - Path=/api/v1/customer/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: file-storage
+              uri: https://cemunlswhucbqjeayhba.supabase.co
+              predicates:
+                - Path=/**
+                - Method=GET
+                - Host=storage.4friends.in.ua
+              filters:
+                - RewritePath=/(?<path>.*), /storage/v1/object/public/files/$\{path}
+            - id: storage
+              uri: lb://storage-service
+              predicates:
+                - Path=/api/v1/storage/**
+              filters:
+                - StripPrefix=2
+                - OptionalAuthFilter
+            # --- Company Services (company-services-service) ---
+            # Standalone resources: service-types, service-categories, services, specialists, schedules, locations
+            - id: company-services_public
+              uri: lb://company-services-service
+              predicates:
+                - Path=/api/v1/service-types/**,/api/v1/service-categories/**,/api/v1/services/**,/api/v1/specialists/**,/api/v1/schedules/**,/api/v1/locations/**
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: company-services_private
+              uri: lb://company-services-service
+              predicates:
+                - Path=/api/v1/service-types/**,/api/v1/service-categories/**,/api/v1/services/**,/api/v1/specialists/**,/api/v1/schedules/**,/api/v1/locations/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            # Nested resources under organizations/branches (MUST be before generic organizations/**)
+            - id: company-services-nested_public
+              uri: lb://company-services-service
+              predicates:
+                - Path=/api/v1/organizations/*/specialists/**,/api/v1/branches/*/services/**
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: company-services-nested_private
+              uri: lb://company-services-service
+              predicates:
+                - Path=/api/v1/organizations/*/specialists/**,/api/v1/branches/*/services/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: service_public
+              uri: lb://services-service
+              predicates:
+                - Path=/api/v1/organizations/*/services/**,/api/v1/organizations/*/proposals/**,/api/v1/customers/*/proposals/**
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: service_private
+              uri: lb://services-service
+              predicates:
+                - Path=/api/v1/organizations/*/services/**,/api/v1/organizations/*/proposals/**,/api/v1/customers/*/proposals/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            # --- Reviews (organization-service) ---
+            - id: reviews_public
+              uri: lb://organization-service
+              predicates:
+                - Path=/api/v1/organizations/reviews/organization/**,/api/v1/organizations/reviews/customer/**,/api/v1/organizations/reviews/search-companies
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: reviews_private
+              uri: lb://organization-service
+              predicates:
+                - Path=/api/v1/organizations/reviews/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: organizations_public
+              uri: lb://organization-service
+              predicates:
+                - Path=/api/v1/organizations/*,/api/v1/organizations/*/addresses/**,/api/v1/organizations/*/albums/**
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: organizations_private
+              uri: lb://organization-service
+              predicates:
+                - Path=/api/v1/organizations/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            # --- Content ---
+            - id: content-search
+              uri: lb://content-search-service
+              predicates:
+                - Path=/api/v1/content/search/**
+              filters:
+                - StripPrefix=3
+            - id: content_public
+              uri: lb://content-service
+              predicates:
+                - Path=/api/v1/content/categories/**,/api/v1/content/posts/**,/api/v1/content/posts,/api/v1/content/comments/**
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: content_admin
+              uri: lb://content-service
+              predicates:
+                - Path=/api/v1/content/admin/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: content_private
+              uri: lb://content-service
+              predicates:
+                - Path=/api/v1/content/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: notifications
+              uri: lb://notification-service
+              predicates:
+                - Path=/api/v1/notifications/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: notifications-ws
+              uri: lb:ws://notification-service
+              predicates:
+                - Path=/socket.io/**
+              filters:
+                - WebSocketAuthFilter
+            - id: booking-product_public
+              uri: lb://booking-products-catalog-service
+              predicates:
+                - Path=/api/v1/booking/products/**
+                - Method=GET
+              filters:
+                - StripPrefix=4
+            - id: booking-product
+              uri: lb://booking-products-catalog-service
+              predicates:
+                - Path=/api/v1/booking/products/**
+              filters:
+                - StripPrefix=4
+                - OptionalAuthFilter
+            - id: booking-company-product_public
+              uri: lb://booking-company-products-service
+              predicates:
+                - Path=/api/v1/booking/organizations/**
+                - Method=GET
+              filters:
+                - StripPrefix=4
+            - id: booking-company-product-bulk-check_public
+              uri: lb://booking-company-products-service
+              predicates:
+                - Path=/api/v1/booking/organizations/branches/*/products/check/bulk
+                - Method=POST
+              filters:
+                - StripPrefix=4
+            - id: booking-company-product
+              uri: lb://booking-company-products-service
+              predicates:
+                - Path=/api/v1/booking/organizations/**
+              filters:
+                - StripPrefix=4
+                - AuthFilter
+            - id: booking-service_public
+              uri: lb://booking-service
+              predicates:
+                - Path=/api/v1/booking,/api/v1/booking/
+              filters:
+                - StripPrefix=3
+                - OptionalAuthFilter
+            - id: booking-service
+              uri: lb://booking-service
+              predicates:
+                - Path=/api/v1/booking/**
+              filters:
+                - StripPrefix=3
+                - OptionalAuthFilter
+            # --- Booking Appointments ---
+            - id: booking-appointments_public
+              uri: lb://booking-appointment-service
+              predicates:
+                - Path=/api/v1/appointments/service-types/**,/api/v1/appointments/service-categories/**,/api/v1/appointments/specialists/**,/api/v1/appointments/service-durations/service/**
+                - Method=GET
+              filters:
+                - StripPrefix=2
+            - id: booking-appointments_private
+              uri: lb://booking-appointment-service
+              predicates:
+                - Path=/api/v1/appointments/**
+              filters:
+                - StripPrefix=2
+                - OptionalAuthFilter
+            - id: embedding-service
+              uri: lb://embedding-service
+              predicates:
+                - Path=/api/v1/embedding/**
+              filters:
+                - StripPrefix=3
+            - id: checkbox
+              uri: lb://checkbox-service
+              predicates:
+                - Path=/api/v1/checkbox/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: unipro
+              uri: lb://unipro-service
+              predicates:
+                - Path=/api/v1/unipro/**
+              filters:
+                - StripPrefix=2
+            - id: dntrade
+              uri: lb://dntrade-service
+              predicates:
+                - Path=/api/v1/dntrade/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+            - id: prom
+              uri: lb://prom-service
+              predicates:
+                - Path=/api/v1/prom/**
+              filters:
+                - StripPrefix=2
+                - AuthFilter
+
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins:
+              - "http://localhost"
+              - "https://gateway.4friends.in.ua"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders: "*"
+            allowCredentials: true
+            exposedHeaders:
+              - Set-Cookie
+
+swagger:
+  path-mapping:
+    global-api-prefix: "/api/v1"
+    replace-service-paths: true
+    service-api-prefixes:
+      user-service: "/api/v1"
+      booking-products-catalog-service: "/api/v1/booking/products"
+      booking-company-products-service: "/api/v1/booking/organizations"
+      booking-service: "/api/v1/booking"
+      booking-appointment-service: "/api/v1/appointments"
+    auto-detection:
+      has-swagger-key: "hasSwagger"
+      has-swagger-value: "true"
+      swagger-path-key: "swaggerPath"
+      default-swagger-path: "/api-docs-json"
