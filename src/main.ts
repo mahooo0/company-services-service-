@@ -9,10 +9,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Встановлення глобального префіксу API (виключаючи api-docs та health)
-  app.setGlobalPrefix('api/v1', {
-    exclude: ['api-docs', 'api-docs-json'],
-  });
+  // Swagger docs доступні без префіксу
 
   // Налаштування Swagger
   const configDocumentation = new DocumentBuilder()
@@ -48,7 +45,7 @@ async function bootstrap() {
       hasSwagger: 'true',
       swaggerPath: 'api-docs-json',
     },
-    '/api/v1/health',
+    '/health',
   );
 
   log.log(`Application started on port: ${port}`);
