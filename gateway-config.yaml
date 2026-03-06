@@ -74,28 +74,28 @@ spring:
             - id: company-services-nested_public
               uri: lb://company-services-service
               predicates:
-                - Path=/api/v1/organizations/*/specialists/**,/api/v1/branches/*/services/**
+                - Path=/api/v1/organizations/*/specialists/**,/api/v1/organizations/*/services/**,/api/v1/branches/*/services/**
                 - Method=GET
               filters:
                 - StripPrefix=2
             - id: company-services-nested_private
               uri: lb://company-services-service
               predicates:
-                - Path=/api/v1/organizations/*/specialists/**,/api/v1/branches/*/services/**
+                - Path=/api/v1/organizations/*/specialists/**,/api/v1/organizations/*/services/**,/api/v1/branches/*/services/**
               filters:
                 - StripPrefix=2
                 - AuthFilter
             - id: service_public
               uri: lb://services-service
               predicates:
-                - Path=/api/v1/organizations/*/services/**,/api/v1/organizations/*/proposals/**,/api/v1/customers/*/proposals/**
+                - Path=/api/v1/organizations/*/proposals/**,/api/v1/customers/*/proposals/**
                 - Method=GET
               filters:
                 - StripPrefix=2
             - id: service_private
               uri: lb://services-service
               predicates:
-                - Path=/api/v1/organizations/*/services/**,/api/v1/organizations/*/proposals/**,/api/v1/customers/*/proposals/**
+                - Path=/api/v1/organizations/*/proposals/**,/api/v1/customers/*/proposals/**
               filters:
                 - StripPrefix=2
                 - AuthFilter
