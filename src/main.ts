@@ -11,7 +11,7 @@ async function bootstrap() {
 
   // Встановлення глобального префіксу API (виключаючи api-docs та health)
   app.setGlobalPrefix('api/v1', {
-    exclude: ['api-docs', 'api-docs-json', 'api/v1/health'],
+    exclude: ['api-docs', 'api-docs-json'],
   });
 
   // Налаштування Swagger

@@ -38,8 +38,8 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(LoggerMiddleware)
-      .exclude({ path: '/health', method: RequestMethod.ALL })
-      .forRoutes('*');
+      .exclude({ path: 'health', method: RequestMethod.ALL })
+      .forRoutes({ path: '{*path}', method: RequestMethod.ALL });
     //.forRoutes(SomeController); // Застосовуємо лише до SomeController
     // АБО
     // .forRoutes({ path: 'api/*', method: RequestMethod.ALL }); // Застосовуємо до всіх маршрутів, що починаються з /api
