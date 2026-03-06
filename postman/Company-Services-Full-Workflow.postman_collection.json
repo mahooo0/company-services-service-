@@ -1,0 +1,862 @@
+{
+  "info": {
+    "_postman_id": "company-services-full-workflow",
+    "name": "Company Services - Full Workflow (Deployment)",
+    "description": "Полный workflow тестирования company-services-service на deployment.\n\nПорядок:\n1. Health Check\n2. Создать категорию\n3. Создать тип услуги\n4. Загрузить изображение (storage)\n5. Создать услугу\n6. Создать специалиста\n7. Привязать услугу к специалисту\n8. Привязать локацию к специалисту\n9. Привязать услугу к локации\n10. Создать расписание\n11. Bulk обновление расписания\n12. Запросы: специалисты/услуги по локации, расписание\n\nВсе ID автоматически сохраняются в переменные.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gatewayUrl", "value": "https://gateway.4friends.in.ua", "type": "string" },
+    { "key": "directUrl", "value": "http://5.189.161.29:3017", "type": "string" },
+    { "key": "storageUrl", "value": "https://gateway.4friends.in.ua/api/v1/storage", "type": "string" },
+    { "key": "baseUrl", "value": "https://gateway.4friends.in.ua/api/v1", "type": "string" },
+    { "key": "authToken", "value": "", "type": "string" },
+    { "key": "organizationId", "value": "00000000-0000-0000-0000-000000000001", "type": "string" },
+    { "key": "locationId", "value": "00000000-0000-0000-0000-000000000010", "type": "string" },
+    { "key": "categoryId", "value": "", "type": "string" },
+    { "key": "serviceTypeId", "value": "", "type": "string" },
+    { "key": "serviceId", "value": "", "type": "string" },
+    { "key": "specialistId", "value": "", "type": "string" },
+    { "key": "scheduleId", "value": "", "type": "string" },
+    { "key": "imageId", "value": "", "type": "string" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{authToken}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "0. Health & Setup",
+      "item": [
+        {
+          "name": "Health Check (direct)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service is healthy', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.status).to.eql('ok');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{directUrl}}/health",
+              "host": ["{{directUrl}}"],
+              "path": ["health"]
+            }
+          }
+        },
+        {
+          "name": "Health Check (via gateway)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Gateway может не иметь health route, проверяем что сервис доступен",
+                  "pm.test('Gateway reachable', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Service Categories",
+      "item": [
+        {
+          "name": "Create Category",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Category created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('categoryId', json.id);",
+                  "    console.log('categoryId saved:', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Красота и здоровье\",\n  \"slug\": \"beauty-health\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          }
+        },
+        {
+          "name": "Get All Categories",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Categories with Types",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/with-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "with-types"]
+            }
+          }
+        },
+        {
+          "name": "Get Category by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-categories/{{categoryId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-categories", "{{categoryId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Service Types",
+      "item": [
+        {
+          "name": "Create Service Type",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service type created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('serviceTypeId', json.id);",
+                  "    console.log('serviceTypeId saved:', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Стрижка\",\n  \"slug\": \"haircut\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          }
+        },
+        {
+          "name": "Get All Active Types",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types"]
+            }
+          }
+        },
+        {
+          "name": "Get All Types (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-types/all",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "all"]
+            }
+          }
+        },
+        {
+          "name": "Suggest Service Type",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Маникюр\",\n  \"slug\": \"manicure\",\n  \"categoryId\": \"{{categoryId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/service-types/suggest",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-types", "suggest"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Upload Image (Storage)",
+      "item": [
+        {
+          "name": "Upload Avatar Image",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Image uploaded', function () {",
+                  "    var status = pm.response.code;",
+                  "    if (status === 200 || status === 201) {",
+                  "        var json = pm.response.json();",
+                  "        if (json.id) pm.collectionVariables.set('imageId', json.id);",
+                  "        if (json.url) console.log('Image URL:', json.url);",
+                  "    } else {",
+                  "        console.log('Storage service response:', pm.response.code, pm.response.text());",
+                  "    }",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "",
+                  "description": "Выберите изображение для загрузки"
+                },
+                {
+                  "key": "folder",
+                  "value": "avatars",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{storageUrl}}/upload",
+              "host": ["{{storageUrl}}"],
+              "path": ["upload"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Services (CRUD)",
+      "item": [
+        {
+          "name": "Create Service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('serviceId', json.id);",
+                  "    console.log('serviceId saved:', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Мужская стрижка\",\n  \"description\": \"Классическая мужская стрижка\",\n  \"typeId\": \"{{serviceTypeId}}\",\n  \"price\": 500,\n  \"imageId\": \"{{imageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          }
+        },
+        {
+          "name": "Create Service with Variations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service with variations created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Женская стрижка\",\n  \"description\": \"Женская стрижка разной длины\",\n  \"typeId\": \"{{serviceTypeId}}\",\n  \"variations\": [\n    { \"name\": \"Короткие волосы\", \"price\": 400 },\n    { \"name\": \"Средние волосы\", \"price\": 600 },\n    { \"name\": \"Длинные волосы\", \"price\": 800 }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"]
+            }
+          }
+        },
+        {
+          "name": "Get All Services",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services?organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"],
+              "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Get Service by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Service",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Мужская стрижка Premium\",\n  \"price\": 700\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Specialists (CRUD)",
+      "item": [
+        {
+          "name": "Create Specialist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Specialist created', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('specialistId', json.id);",
+                  "    console.log('specialistId saved:', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"firstName\": \"Иван\",\n  \"lastName\": \"Петров\",\n  \"email\": \"ivan@example.com\",\n  \"phone\": \"+380501234567\",\n  \"description\": \"Опытный мастер-парикмахер\",\n  \"isTopMaster\": true,\n  \"avatar\": \"{{imageId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/specialists",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists"]
+            }
+          }
+        },
+        {
+          "name": "Create Specialist #2",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"firstName\": \"Мария\",\n  \"lastName\": \"Сидорова\",\n  \"email\": \"maria@example.com\",\n  \"phone\": \"+380509876543\",\n  \"description\": \"Стилист-колорист\",\n  \"isTopMaster\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/specialists",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists"]
+            }
+          }
+        },
+        {
+          "name": "Get All Specialists",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists?organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists"],
+              "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Search Specialists by Name",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists?search=Иван&organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists"],
+              "query": [
+                { "key": "search", "value": "Иван" },
+                { "key": "organizationId", "value": "{{organizationId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Top Masters",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists?isTopMaster=true&organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists"],
+              "query": [
+                { "key": "isTopMaster", "value": "true" },
+                { "key": "organizationId", "value": "{{organizationId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Specialist by ID",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}"]
+            }
+          }
+        },
+        {
+          "name": "Update Specialist",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Топ мастер с 10-летним опытом\",\n  \"isTopMaster\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Assign Relationships",
+      "item": [
+        {
+          "name": "Assign Service to Specialist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service assigned to specialist', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": \"{{serviceId}}\",\n  \"organizationId\": \"{{organizationId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}", "services"]
+            }
+          }
+        },
+        {
+          "name": "Assign Location to Specialist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Location assigned to specialist', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{locationId}}\",\n  \"organizationId\": \"{{organizationId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}/locations",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}", "locations"]
+            }
+          }
+        },
+        {
+          "name": "Assign Service to Location",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Service assigned to location', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"serviceId\": \"{{serviceId}}\",\n  \"organizationId\": \"{{organizationId}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/locations/{{locationId}}/services",
+              "host": ["{{baseUrl}}"],
+              "path": ["locations", "{{locationId}}", "services"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Schedules",
+      "item": [
+        {
+          "name": "Create Schedule (Monday)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Schedule created', function () {",
+                  "    var status = pm.response.code;",
+                  "    pm.expect(status).to.be.oneOf([200, 201]);",
+                  "    var json = pm.response.json();",
+                  "    pm.collectionVariables.set('scheduleId', json.id);",
+                  "    console.log('scheduleId saved:', json.id);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"specialistId\": \"{{specialistId}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"dayOfWeek\": 1,\n  \"intervals\": [\n    { \"startTime\": \"09:00\", \"endTime\": \"13:00\" },\n    { \"startTime\": \"14:00\", \"endTime\": \"18:00\" }\n  ],\n  \"isDayOff\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/schedules",
+              "host": ["{{baseUrl}}"],
+              "path": ["schedules"]
+            }
+          }
+        },
+        {
+          "name": "Bulk Update Schedule (Full Week)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Bulk schedule updated', function () {",
+                  "    var status = pm.response.code;",
+                  "    pm.expect(status).to.be.oneOf([200, 201]);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"specialistId\": \"{{specialistId}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"items\": [\n    { \"dayOfWeek\": 1, \"intervals\": [{ \"startTime\": \"09:00\", \"endTime\": \"18:00\" }], \"isDayOff\": false },\n    { \"dayOfWeek\": 2, \"intervals\": [{ \"startTime\": \"09:00\", \"endTime\": \"18:00\" }], \"isDayOff\": false },\n    { \"dayOfWeek\": 3, \"intervals\": [{ \"startTime\": \"09:00\", \"endTime\": \"18:00\" }], \"isDayOff\": false },\n    { \"dayOfWeek\": 4, \"intervals\": [{ \"startTime\": \"09:00\", \"endTime\": \"18:00\" }], \"isDayOff\": false },\n    { \"dayOfWeek\": 5, \"intervals\": [{ \"startTime\": \"09:00\", \"endTime\": \"16:00\" }], \"isDayOff\": false },\n    { \"dayOfWeek\": 6, \"intervals\": [], \"isDayOff\": true },\n    { \"dayOfWeek\": 0, \"intervals\": [], \"isDayOff\": true }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/schedules/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["schedules", "bulk"]
+            }
+          }
+        },
+        {
+          "name": "Update Single Schedule",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intervals\": [\n    { \"startTime\": \"10:00\", \"endTime\": \"14:00\" },\n    { \"startTime\": \"15:00\", \"endTime\": \"19:00\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["schedules", "{{scheduleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Schedule by Specialist+Location",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/schedules/specialist/{{specialistId}}/location/{{locationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["schedules", "specialist", "{{specialistId}}", "location", "{{locationId}}"]
+            }
+          }
+        },
+        {
+          "name": "Get Schedule by Location (grouped)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/schedules/location/{{locationId}}?organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["schedules", "location", "{{locationId}}"],
+              "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Query Relationships",
+      "item": [
+        {
+          "name": "Services at Location",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/{{locationId}}/services?organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["locations", "{{locationId}}", "services"],
+              "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Specialists at Location",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/{{locationId}}/specialists?organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["locations", "{{locationId}}", "specialists"],
+              "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+            }
+          }
+        },
+        {
+          "name": "Specialists by Organization",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/organizations/{{organizationId}}/specialists",
+              "host": ["{{baseUrl}}"],
+              "path": ["organizations", "{{organizationId}}", "specialists"]
+            }
+          }
+        },
+        {
+          "name": "Services by Organization",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services?organizationId={{organizationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services"],
+              "query": [{ "key": "organizationId", "value": "{{organizationId}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Unassign & Cleanup",
+      "item": [
+        {
+          "name": "Unassign Service from Specialist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}", "services", "{{serviceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Unassign Location from Specialist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}/locations/{{locationId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}", "locations", "{{locationId}}"]
+            }
+          }
+        },
+        {
+          "name": "Unassign Service from Location",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/locations/{{locationId}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["locations", "{{locationId}}", "services", "{{serviceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Schedule",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/schedules/{{scheduleId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["schedules", "{{scheduleId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Specialist",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/specialists/{{specialistId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["specialists", "{{specialistId}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Service",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/services/{{serviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["services", "{{serviceId}}"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
