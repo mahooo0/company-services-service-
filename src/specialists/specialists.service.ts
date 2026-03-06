@@ -182,9 +182,7 @@ export class SpecialistsService {
     });
 
     if (!specialist) {
-      throw new NotFoundException(
-        `Специалист с ID ${specialistId} не найден`,
-      );
+      throw new NotFoundException(`Специалист с ID ${specialistId} не найден`);
     }
 
     // Проверяем существование услуги
@@ -251,9 +249,7 @@ export class SpecialistsService {
       },
     });
 
-    this.logger.log(
-      `Услуга ${serviceId} убрана у специалиста ${specialistId}`,
-    );
+    this.logger.log(`Услуга ${serviceId} убрана у специалиста ${specialistId}`);
   }
 
   // Назначить локацию специалисту
@@ -264,9 +260,7 @@ export class SpecialistsService {
     });
 
     if (!specialist) {
-      throw new NotFoundException(
-        `Специалист с ID ${specialistId} не найден`,
-      );
+      throw new NotFoundException(`Специалист с ID ${specialistId} не найден`);
     }
 
     try {
@@ -334,28 +328,43 @@ export class SpecialistsService {
     return this.findAll({ ...filters, organizationId });
   }
 
+  // Обновить аватар (из Storage Service events)
+  async updateAvatar(specialistId: string, avatarUrl: string): Promise<void> {
+    await this.prisma.specialist.updateMany({
+      where: { id: specialistId },
+      data: { avatar: avatarUrl },
+    });
+  }
+
+  // Очистить аватар (при удалении файла)
+  async clearAvatar(specialistId: string): Promise<void> {
+    await this.prisma.specialist.updateMany({
+      where: { id: specialistId },
+      data: { avatar: null },
+    });
+  }
+
   // Получить специалистов по локации
   async findByLocation(locationId: string, organizationId: string) {
-    const specialistLocations =
-      await this.prisma.specialistLocation.findMany({
-        where: {
-          locationId,
-          organizationId,
-        },
-        include: {
-          specialist: {
-            include: {
-              services: {
-                include: {
-                  service: true,
-                },
+    const specialistLocations = await this.prisma.specialistLocation.findMany({
+      where: {
+        locationId,
+        organizationId,
+      },
+      include: {
+        specialist: {
+          include: {
+            services: {
+              include: {
+                service: true,
               },
-              locations: true,
             },
+            locations: true,
           },
         },
-      });
+      },
+    });
 
-    return specialistLocations.map((sl) => sl.specialist);
+    return specialistLocations.map(sl => sl.specialist);
   }
 }

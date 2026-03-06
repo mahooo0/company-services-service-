@@ -34,7 +34,7 @@ export class LocationsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return locationServices.map((ls) => ls.service);
+    return locationServices.map(ls => ls.service);
   }
 
   // Привязать услугу к локации
@@ -113,9 +113,7 @@ export class LocationsService {
       },
     });
 
-    this.logger.log(
-      `Услуга ${serviceId} отвязана от локации ${locationId}`,
-    );
+    this.logger.log(`Услуга ${serviceId} отвязана от локации ${locationId}`);
   }
 
   // Получить всех специалистов, привязанных к локации
@@ -131,6 +129,6 @@ export class LocationsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return specialistLocations.map((sl) => sl.specialist);
+    return specialistLocations.map(sl => sl.specialist);
   }
 }

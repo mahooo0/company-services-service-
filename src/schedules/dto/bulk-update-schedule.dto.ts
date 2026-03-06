@@ -48,7 +48,10 @@ export class BulkUpdateScheduleDto {
   @IsNotEmpty()
   locationId: string;
 
-  @ApiProperty({ description: 'Расписание по дням', type: [BulkScheduleItemDto] })
+  @ApiProperty({
+    description: 'Расписание по дням',
+    type: [BulkScheduleItemDto],
+  })
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => BulkScheduleItemDto)

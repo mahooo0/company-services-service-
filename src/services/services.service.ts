@@ -278,6 +278,22 @@ export class ServicesService {
     return this.findAll({ ...filters, organizationId });
   }
 
+  // Обновить imageId (из Storage Service events)
+  async updateImageUrl(serviceId: string, imageUrl: string): Promise<void> {
+    await this.prisma.service.updateMany({
+      where: { id: serviceId },
+      data: { imageId: imageUrl },
+    });
+  }
+
+  // Очистить imageId (при удалении файла)
+  async clearImageUrl(serviceId: string): Promise<void> {
+    await this.prisma.service.updateMany({
+      where: { id: serviceId },
+      data: { imageId: null },
+    });
+  }
+
   // Получить услуги по филиалу
   async findByBranch(branchId: string, filters: ServiceFiltersDto) {
     return this.findAll({ ...filters, branchId });

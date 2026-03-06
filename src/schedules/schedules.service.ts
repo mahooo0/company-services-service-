@@ -81,7 +81,7 @@ export class SchedulesService {
       orderBy: { dayOfWeek: 'asc' },
     });
 
-    return schedules.map((s) => this.toResponseDto(s));
+    return schedules.map(s => this.toResponseDto(s));
   }
 
   // Получить все расписания для локации, сгруппированные по специалисту
@@ -159,7 +159,8 @@ export class SchedulesService {
     const schedule = await this.prisma.schedule.update({
       where: { id },
       data: {
-        intervals: dto.intervals !== undefined ? (dto.intervals as any) : undefined,
+        intervals:
+          dto.intervals !== undefined ? (dto.intervals as any) : undefined,
         isDayOff: dto.isDayOff,
       },
     });
@@ -170,16 +171,14 @@ export class SchedulesService {
   }
 
   // Массовое обновление расписания (upsert нескольких дней в транзакции)
-  async bulkUpdate(
-    dto: BulkUpdateScheduleDto,
-  ): Promise<ScheduleResponseDto[]> {
+  async bulkUpdate(dto: BulkUpdateScheduleDto): Promise<ScheduleResponseDto[]> {
     // Валидируем интервалы для каждого дня
     for (const item of dto.items) {
       this.validateIntervals(item.intervals);
     }
 
     const schedules = await this.prisma.$transaction(
-      dto.items.map((item) =>
+      dto.items.map(item =>
         this.prisma.schedule.upsert({
           where: {
             specialistId_locationId_dayOfWeek: {
@@ -208,7 +207,7 @@ export class SchedulesService {
       `Массовое обновление расписания: специалист ${dto.specialistId}, локация ${dto.locationId}, дней: ${dto.items.length}`,
     );
 
-    return schedules.map((s) => this.toResponseDto(s));
+    return schedules.map(s => this.toResponseDto(s));
   }
 
   // Удалить расписание по ID

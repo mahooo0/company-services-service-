@@ -30,7 +30,6 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    // Закриття з'єднання при завершенні роботи додатку
     try {
       await this.channel?.close();
       await this.connection?.close();
@@ -40,61 +39,34 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // // Метод для публікації повідомлень
-  // async publish(exchange: string, routingKey: string, content: any, options?: amqp.Options.Publish) {
-  //     try {
-  //         // Переконуємося, що обмін існує
-  //         await this.channel.assertExchange(exchange, 'topic', { durable: true });
-  //
-  //         // Публікуємо повідомлення
-  //         return this.channel.publish(
-  //             exchange,
-  //             routingKey,
-  //             Buffer.from(JSON.stringify(content)),
-  //             options
-  //         );
-  //     } catch (error) {
-  //         console.error('Помилка публікації повідомлення:', error);
-  //         throw error;
-  //     }
-  // }
-  //
-  // // Метод для підписки на повідомлення
-  // async subscribe(queue: string, callback: (msg: amqp.ConsumeMessage) => void, options?: amqp.Options.Consume) {
-  //     try {
-  //         // Переконуємося, що черга існує
-  //         await this.channel.assertQueue(queue, { durable: true });
-  //
-  //         // Підписуємося на повідомлення
-  //         return this.channel.consume(
-  //             queue,
-  //             (msg) => {
-  //                 if (msg) {
-  //                     callback(msg);
-  //                 }
-  //             },
-  //             { ...options, noAck: false }
-  //         );
-  //     } catch (error) {
-  //         console.error('Помилка підписки на чергу:', error);
-  //         throw error;
-  //     }
-  // }
-  //
-  // // Метод для підтвердження обробки повідомлення
-  // async ack(msg: amqp.ConsumeMessage) {
-  //     this.channel.ack(msg);
-  // }
-  //
-  // // Метод для створення прив'язки між чергою та обміном
-  // async bindQueue(queue: string, exchange: string, pattern: string) {
-  //     await this.channel.assertQueue(queue, { durable: true });
-  //     await this.channel.assertExchange(exchange, 'topic', { durable: true });
-  //     await this.channel.bindQueue(queue, exchange, pattern);
-  // }
-  //
-  // // Отримати канал для більш складних операцій
-  // getChannel(): amqp.Channel {
-  //     return this.channel;
-  // }
+  /**
+   * Subscribe to fanout exchange
+   */
+  async subscribeFanoutExchange(
+    exchange: string,
+    queueName: string,
+    callback: (msg: amqp.ConsumeMessage | null) => void,
+    options?: amqp.Options.Consume,
+  ) {
+    try {
+      await this.channel.assertExchange(exchange, 'fanout', { durable: true });
+      const q = await this.channel.assertQueue(queueName, { durable: true });
+      await this.channel.bindQueue(q.queue, exchange, '');
+
+      return this.channel.consume(q.queue, callback, {
+        ...options,
+        noAck: false,
+      });
+    } catch (error) {
+      this.logger.error('Error subscribing to fanout exchange:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get channel for advanced operations (ack/nack)
+   */
+  getChannel(): amqp.Channel {
+    return this.channel;
+  }
 }
