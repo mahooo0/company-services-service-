@@ -8,7 +8,7 @@ spring:
               uri: lb://user-service
               predicates:
                 - Path=/api/v1/auth/**
-              filters:
+              filters: 
                 - StripPrefix=2
                 - OptionalAuthFilter
             - id: users

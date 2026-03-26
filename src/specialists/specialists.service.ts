@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LogService } from '@/log/log.service';
+import { EventPublisherService } from '@/events/event-publisher.service';
 import {
   CreateSpecialistDto,
   UpdateSpecialistDto,
@@ -18,16 +19,25 @@ export class SpecialistsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: LogService,
+    private readonly eventPublisher: EventPublisherService,
   ) {}
 
   // Получить специалистов с фильтрацией и пагинацией
   async findAll(filters: SpecialistFiltersDto) {
-    const { organizationId, isTopMaster, search, page, limit } = filters;
+    const { organizationId, locationId, serviceId, isTopMaster, search, page, limit } = filters;
 
     const where: any = {};
 
     if (organizationId) where.organizationId = organizationId;
     if (isTopMaster !== undefined) where.isTopMaster = isTopMaster;
+
+    if (locationId) {
+      where.locations = { some: { locationId } };
+    }
+
+    if (serviceId) {
+      where.services = { some: { serviceId } };
+    }
 
     if (search) {
       where.OR = [
@@ -91,30 +101,61 @@ export class SpecialistsService {
 
   // Создать специалиста
   async create(dto: CreateSpecialistDto) {
-    const specialist = await this.prisma.specialist.create({
-      data: {
-        organizationId: dto.organizationId,
-        avatar: dto.avatar,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        email: dto.email,
-        phone: dto.phone,
-        description: dto.description,
-        isTopMaster: dto.isTopMaster ?? false,
-      },
-      include: {
-        services: {
-          include: {
-            service: true,
-          },
+    const specialist = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.specialist.create({
+        data: {
+          organizationId: dto.organizationId,
+          avatar: dto.avatar,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: dto.email,
+          phone: dto.phone,
+          description: dto.description,
+          isTopMaster: dto.isTopMaster ?? false,
         },
-        locations: true,
-      },
+      });
+
+      // Привязать локацию если указана
+      if (dto.locationId) {
+        await tx.specialistLocation.create({
+          data: {
+            specialistId: created.id,
+            locationId: dto.locationId,
+            organizationId: dto.organizationId,
+          },
+        });
+      }
+
+      // Привязать услуги если указаны
+      if (dto.serviceIds?.length) {
+        await tx.specialistService.createMany({
+          data: dto.serviceIds.map((serviceId) => ({
+            specialistId: created.id,
+            serviceId,
+            organizationId: dto.organizationId,
+          })),
+        });
+      }
+
+      // Вернуть с включенными связями
+      return tx.specialist.findUnique({
+        where: { id: created.id },
+        include: {
+          services: { include: { service: true } },
+          locations: true,
+        },
+      });
     });
 
     this.logger.log(
-      `Создан специалист: ${specialist.firstName} ${specialist.lastName} (${specialist.id})`,
+      `Создан специалист: ${specialist!.firstName} ${specialist!.lastName} (${specialist!.id})`,
     );
+
+    this.eventPublisher.publishSpecialistEvent(
+      'specialist.created',
+      specialist,
+    );
+
     return specialist;
   }
 
@@ -122,36 +163,80 @@ export class SpecialistsService {
   async update(id: string, dto: UpdateSpecialistDto) {
     const existing = await this.prisma.specialist.findUnique({
       where: { id },
+      include: { locations: true, services: true },
     });
 
     if (!existing) {
       throw new NotFoundException(`Специалист с ID ${id} не найден`);
     }
 
-    const specialist = await this.prisma.specialist.update({
-      where: { id },
-      data: {
-        avatar: dto.avatar,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        email: dto.email,
-        phone: dto.phone,
-        description: dto.description,
-        isTopMaster: dto.isTopMaster,
-      },
-      include: {
-        services: {
-          include: {
-            service: true,
-          },
+    const specialist = await this.prisma.$transaction(async (tx) => {
+      await tx.specialist.update({
+        where: { id },
+        data: {
+          avatar: dto.avatar,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: dto.email,
+          phone: dto.phone,
+          description: dto.description,
+          isTopMaster: dto.isTopMaster,
         },
-        locations: true,
-      },
+      });
+
+      // Синхронизировать локацию если указана
+      if (dto.locationId !== undefined) {
+        // Удалить все текущие локации и назначить новую
+        await tx.specialistLocation.deleteMany({
+          where: { specialistId: id },
+        });
+
+        if (dto.locationId) {
+          await tx.specialistLocation.create({
+            data: {
+              specialistId: id,
+              locationId: dto.locationId,
+              organizationId: existing.organizationId,
+            },
+          });
+        }
+      }
+
+      // Синхронизировать услуги если указаны
+      if (dto.serviceIds !== undefined) {
+        await tx.specialistService.deleteMany({
+          where: { specialistId: id },
+        });
+
+        if (dto.serviceIds.length) {
+          await tx.specialistService.createMany({
+            data: dto.serviceIds.map((serviceId) => ({
+              specialistId: id,
+              serviceId,
+              organizationId: existing.organizationId,
+            })),
+          });
+        }
+      }
+
+      return tx.specialist.findUnique({
+        where: { id },
+        include: {
+          services: { include: { service: true } },
+          locations: true,
+        },
+      });
     });
 
     this.logger.log(
-      `Обновлен специалист: ${specialist.firstName} ${specialist.lastName} (${specialist.id})`,
+      `Обновлен специалист: ${specialist!.firstName} ${specialist!.lastName} (${specialist!.id})`,
     );
+
+    this.eventPublisher.publishSpecialistEvent(
+      'specialist.updated',
+      specialist,
+    );
+
     return specialist;
   }
 
@@ -172,6 +257,11 @@ export class SpecialistsService {
     this.logger.log(
       `Удален специалист: ${existing.firstName} ${existing.lastName} (${id})`,
     );
+
+    this.eventPublisher.publishSpecialistEvent('specialist.deleted', {
+      id,
+      organizationId: existing.organizationId,
+    });
   }
 
   // Назначить услугу специалисту
@@ -209,6 +299,17 @@ export class SpecialistsService {
       this.logger.log(
         `Услуга ${dto.serviceId} назначена специалисту ${specialistId}`,
       );
+
+      this.eventPublisher.publishSpecialistEvent(
+        'specialist.service-assigned',
+        {
+          specialistId,
+          serviceId: dto.serviceId,
+          organizationId: dto.organizationId,
+          specialist,
+        },
+      );
+
       return specialistService;
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -250,6 +351,15 @@ export class SpecialistsService {
     });
 
     this.logger.log(`Услуга ${serviceId} убрана у специалиста ${specialistId}`);
+
+    this.eventPublisher.publishSpecialistEvent(
+      'specialist.service-unassigned',
+      {
+        specialistId,
+        serviceId,
+        organizationId: record.organizationId,
+      },
+    );
   }
 
   // Назначить локацию специалисту
@@ -275,6 +385,16 @@ export class SpecialistsService {
       this.logger.log(
         `Локация ${dto.locationId} назначена специалисту ${specialistId}`,
       );
+
+      this.eventPublisher.publishSpecialistEvent(
+        'specialist.location-assigned',
+        {
+          specialistId,
+          locationId: dto.locationId,
+          organizationId: dto.organizationId,
+        },
+      );
+
       return specialistLocation;
     } catch (error: any) {
       if (error.code === 'P2002') {
@@ -317,6 +437,15 @@ export class SpecialistsService {
 
     this.logger.log(
       `Локация ${locationId} убрана у специалиста ${specialistId}`,
+    );
+
+    this.eventPublisher.publishSpecialistEvent(
+      'specialist.location-unassigned',
+      {
+        specialistId,
+        locationId,
+        organizationId: record.organizationId,
+      },
     );
   }
 

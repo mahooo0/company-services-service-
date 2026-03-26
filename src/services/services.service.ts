@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LogService } from '@/log/log.service';
+import { EventPublisherService } from '@/events/event-publisher.service';
 import {
   CreateServiceDto,
   UpdateServiceDto,
@@ -18,6 +19,7 @@ export class ServicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: LogService,
+    private readonly eventPublisher: EventPublisherService,
   ) {}
 
   // Преобразование в DTO ответа
@@ -162,7 +164,11 @@ export class ServicesService {
     });
 
     this.logger.log(`Создана услуга: ${service.name} (${service.id})`);
-    return this.toResponseDto(service);
+
+    const responseDto = this.toResponseDto(service);
+    this.eventPublisher.publishServiceEvent('service.created', responseDto);
+
+    return responseDto;
   }
 
   // Обновить услугу
@@ -253,7 +259,11 @@ export class ServicesService {
     });
 
     this.logger.log(`Обновлена услуга: ${service.name} (${service.id})`);
-    return this.toResponseDto(service);
+
+    const responseDto = this.toResponseDto(service);
+    this.eventPublisher.publishServiceEvent('service.updated', responseDto);
+
+    return responseDto;
   }
 
   // Удалить услугу
@@ -271,6 +281,11 @@ export class ServicesService {
     });
 
     this.logger.log(`Удалена услуга: ${existing.name} (${id})`);
+
+    this.eventPublisher.publishServiceEvent('service.deleted', {
+      id,
+      organizationId: existing.organizationId,
+    });
   }
 
   // Получить услуги по организации

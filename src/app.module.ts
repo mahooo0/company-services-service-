@@ -20,6 +20,7 @@ import { LocationsModule } from './locations/locations.module';
 import { SpecialistsModule } from './specialists/specialists.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { ConsumersModule } from './consumers/consumers.module';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { ConsumersModule } from './consumers/consumers.module';
     PrismaModule,
     RabbitmqModule,
     LogModule,
+    EventsModule,
     ServiceCategoriesModule,
     ServiceTypesModule,
     ServicesModule,

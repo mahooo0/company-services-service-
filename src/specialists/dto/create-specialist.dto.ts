@@ -5,6 +5,7 @@ import {
   IsUUID,
   IsOptional,
   IsBoolean,
+  IsArray,
   MaxLength,
 } from 'class-validator';
 
@@ -60,4 +61,18 @@ export class CreateSpecialistDto {
   @IsBoolean()
   @IsOptional()
   isTopMaster?: boolean = false;
+
+  @ApiPropertyOptional({ description: 'ID локации (адреса) для привязки' })
+  @IsUUID()
+  @IsOptional()
+  locationId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Массив ID услуг для привязки',
+    type: [String],
+  })
+  @IsArray()
+  @IsUUID('4', { each: true })
+  @IsOptional()
+  serviceIds?: string[];
 }

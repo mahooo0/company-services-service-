@@ -64,6 +64,42 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
+   * Publish message to fanout exchange
+   */
+  async publishFanoutExchange(
+    exchange: string,
+    routingKey: string,
+    data: any,
+  ): Promise<void> {
+    try {
+      await this.channel.assertExchange(exchange, 'fanout', { durable: true });
+
+      const message = Buffer.from(
+        JSON.stringify({
+          event: routingKey,
+          data,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+
+      this.channel.publish(exchange, routingKey, message, {
+        persistent: true,
+        contentType: 'application/json',
+      });
+
+      this.logger.log(
+        `Published event ${routingKey} to exchange ${exchange}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error publishing to exchange ${exchange}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
    * Get channel for advanced operations (ack/nack)
    */
   getChannel(): amqp.Channel {

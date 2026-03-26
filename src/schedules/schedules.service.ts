@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { LogService } from '@/log/log.service';
+import { EventPublisherService } from '@/events/event-publisher.service';
 import {
   CreateScheduleDto,
   UpdateScheduleDto,
@@ -18,6 +19,7 @@ export class SchedulesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: LogService,
+    private readonly eventPublisher: EventPublisherService,
   ) {}
 
   // Преобразование в DTO ответа
@@ -136,7 +138,10 @@ export class SchedulesService {
       `Создано/обновлено расписание: специалист ${dto.specialistId}, локация ${dto.locationId}, день ${dto.dayOfWeek} (${schedule.id})`,
     );
 
-    return this.toResponseDto(schedule);
+    const responseDto = this.toResponseDto(schedule);
+    this.eventPublisher.publishScheduleEvent('schedule.created', responseDto);
+
+    return responseDto;
   }
 
   // Обновить расписание по ID
@@ -167,7 +172,10 @@ export class SchedulesService {
 
     this.logger.log(`Обновлено расписание: ${schedule.id}`);
 
-    return this.toResponseDto(schedule);
+    const responseDto = this.toResponseDto(schedule);
+    this.eventPublisher.publishScheduleEvent('schedule.updated', responseDto);
+
+    return responseDto;
   }
 
   // Массовое обновление расписания (upsert нескольких дней в транзакции)
@@ -225,5 +233,12 @@ export class SchedulesService {
     });
 
     this.logger.log(`Удалено расписание: ${id}`);
+
+    this.eventPublisher.publishScheduleEvent('schedule.deleted', {
+      id,
+      organizationId: existing.organizationId,
+      specialistId: existing.specialistId,
+      locationId: existing.locationId,
+    });
   }
 }

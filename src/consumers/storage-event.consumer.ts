@@ -33,10 +33,7 @@ export class StorageEventConsumer implements OnModuleInit {
   private readonly QUEUE_NAME = 'company-services.storage-events';
   private readonly EXCHANGE_NAME = 'storage';
 
-  private readonly ENTITY_TYPES = [
-    'SPECIALIST_AVATAR',
-    'SERVICE_IMAGE',
-  ];
+  private readonly ENTITY_TYPES = ['SPECIALIST_AVATAR', 'SERVICE_IMAGE'];
 
   constructor(
     private readonly rabbitmqService: RabbitmqService,

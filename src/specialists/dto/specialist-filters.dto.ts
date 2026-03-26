@@ -16,6 +16,16 @@ export class SpecialistFiltersDto {
   @IsOptional()
   organizationId?: string;
 
+  @ApiPropertyOptional({ description: 'Фильтр по локации (адресу)' })
+  @IsUUID()
+  @IsOptional()
+  locationId?: string;
+
+  @ApiPropertyOptional({ description: 'Фильтр по услуге' })
+  @IsUUID()
+  @IsOptional()
+  serviceId?: string;
+
   @ApiPropertyOptional({ description: 'Только топ-мастера' })
   @IsBoolean()
   @IsOptional()
