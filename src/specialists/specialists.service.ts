@@ -24,7 +24,15 @@ export class SpecialistsService {
 
   // Получить специалистов с фильтрацией и пагинацией
   async findAll(filters: SpecialistFiltersDto) {
-    const { organizationId, locationId, serviceId, isTopMaster, search, page, limit } = filters;
+    const {
+      organizationId,
+      locationId,
+      serviceId,
+      isTopMaster,
+      search,
+      page,
+      limit,
+    } = filters;
 
     const where: any = {};
 
@@ -101,7 +109,7 @@ export class SpecialistsService {
 
   // Создать специалиста
   async create(dto: CreateSpecialistDto) {
-    const specialist = await this.prisma.$transaction(async (tx) => {
+    const specialist = await this.prisma.$transaction(async tx => {
       const created = await tx.specialist.create({
         data: {
           organizationId: dto.organizationId,
@@ -129,7 +137,7 @@ export class SpecialistsService {
       // Привязать услуги если указаны
       if (dto.serviceIds?.length) {
         await tx.specialistService.createMany({
-          data: dto.serviceIds.map((serviceId) => ({
+          data: dto.serviceIds.map(serviceId => ({
             specialistId: created.id,
             serviceId,
             organizationId: dto.organizationId,
@@ -170,7 +178,7 @@ export class SpecialistsService {
       throw new NotFoundException(`Специалист с ID ${id} не найден`);
     }
 
-    const specialist = await this.prisma.$transaction(async (tx) => {
+    const specialist = await this.prisma.$transaction(async tx => {
       await tx.specialist.update({
         where: { id },
         data: {
@@ -210,7 +218,7 @@ export class SpecialistsService {
 
         if (dto.serviceIds.length) {
           await tx.specialistService.createMany({
-            data: dto.serviceIds.map((serviceId) => ({
+            data: dto.serviceIds.map(serviceId => ({
               specialistId: id,
               serviceId,
               organizationId: existing.organizationId,

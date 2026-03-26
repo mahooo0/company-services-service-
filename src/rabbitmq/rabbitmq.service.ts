@@ -87,14 +87,9 @@ export class RabbitmqService implements OnModuleInit, OnModuleDestroy {
         contentType: 'application/json',
       });
 
-      this.logger.log(
-        `Published event ${routingKey} to exchange ${exchange}`,
-      );
+      this.logger.log(`Published event ${routingKey} to exchange ${exchange}`);
     } catch (error) {
-      this.logger.error(
-        `Error publishing to exchange ${exchange}:`,
-        error,
-      );
+      this.logger.error(`Error publishing to exchange ${exchange}:`, error);
       throw error;
     }
   }
