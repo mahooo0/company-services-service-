@@ -62,6 +62,7 @@ model Service {
   price          Decimal? @db.Decimal(10, 2)
   imageId        String?
   isActive       Boolean  @default(true)
+  sortOrder      Int      @default(0)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -71,6 +72,7 @@ model Service {
   locationServices   LocationService[]
 
   @@index([organizationId])
+  @@index([organizationId, sortOrder])
   @@index([branchId])
   @@index([typeId])
   @@map("services")

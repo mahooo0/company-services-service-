@@ -70,7 +70,7 @@ export class ServicesService {
             orderBy: { createdAt: 'asc' },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
         skip: (page! - 1) * limit!,
         take: limit,
       }),
