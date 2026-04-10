@@ -12,6 +12,7 @@ import {
   ServiceFiltersDto,
   ServiceResponseDto,
 } from './dto';
+import { ReorderServicesDto } from './dto/reorder-services.dto';
 import { Decimal } from '@prisma/client/runtime/library';
 
 @Injectable()
@@ -312,5 +313,34 @@ export class ServicesService {
   // Получить услуги по филиалу
   async findByBranch(branchId: string, filters: ServiceFiltersDto) {
     return this.findAll({ ...filters, branchId });
+  }
+
+  // Изменить порядок отображения услуг организации
+  async reorder(organizationId: string, dto: ReorderServicesDto): Promise<void> {
+    const ids = dto.items.map((i) => i.id);
+
+    if (ids.length === 0) {
+      return;
+    }
+
+    const existing = await this.prisma.service.findMany({
+      where: { id: { in: ids }, organizationId },
+      select: { id: true },
+    });
+
+    if (existing.length !== ids.length) {
+      throw new BadRequestException(
+        'One or more service IDs do not belong to this organization',
+      );
+    }
+
+    await this.prisma.$transaction(
+      dto.items.map((item) =>
+        this.prisma.service.update({
+          where: { id: item.id },
+          data: { sortOrder: item.sortOrder },
+        }),
+      ),
+    );
   }
 }

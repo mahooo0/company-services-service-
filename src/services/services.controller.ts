@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Delete,
+  Patch,
   Body,
   Param,
   Query,
@@ -25,6 +26,7 @@ import {
   ServiceFiltersDto,
   ServiceResponseDto,
 } from './dto';
+import { ReorderServicesDto } from './dto/reorder-services.dto';
 
 @ApiTags('Services')
 @ApiBearerAuth()
@@ -115,6 +117,22 @@ export class OrganizationServicesController {
     @Query() filters: ServiceFiltersDto,
   ) {
     return this.servicesService.findByOrganization(organizationId, filters);
+  }
+
+  @Patch('reorder')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Reorder services for an organization' })
+  @ApiParam({ name: 'organizationId', description: 'Organization ID' })
+  @ApiResponse({ status: 204, description: 'Services reordered successfully' })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid service IDs for this organization',
+  })
+  async reorder(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Body() dto: ReorderServicesDto,
+  ): Promise<void> {
+    return this.servicesService.reorder(organizationId, dto);
   }
 }
 
