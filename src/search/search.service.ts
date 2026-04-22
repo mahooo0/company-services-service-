@@ -393,7 +393,7 @@ export class SearchService {
     // Услуги
     const serviceSql = `
       SELECT DISTINCT ON (s."name") s."id", s."name", 'service' AS type,
-        o."name" AS extra
+        o."name" AS "orgName", o."slug" AS "orgSlug", o."id" AS "orgId"
       FROM services s
       LEFT JOIN organizations o ON s."organizationId" = o."id"
       WHERE s."isActive" = true
@@ -412,7 +412,7 @@ export class SearchService {
 
     // Компании
     const orgSql = `
-      SELECT o."id", o."name", 'organization' AS type, o."category" AS extra
+      SELECT o."id", o."name", o."slug", 'organization' AS type, o."category" AS extra
       FROM organizations o
       WHERE o."isActive" = true
         AND (${variants.map((_, i) => `o."name" ILIKE $${i + 1}`).join(' OR ')})
@@ -444,12 +444,17 @@ export class SearchService {
         type: 'service',
         id: s.id,
         name: s.name,
-        extra: s.extra,
+        organization: {
+          id: s.orgId,
+          name: s.orgName,
+          slug: s.orgSlug,
+        },
       })),
       ...orgs.map(o => ({
         type: 'organization',
         id: o.id,
         name: o.name,
+        slug: o.slug,
         extra: o.extra,
       })),
     ];
