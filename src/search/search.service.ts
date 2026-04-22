@@ -157,9 +157,9 @@ export class SearchService {
       FROM services s
       JOIN service_types st ON s."typeId" = st."id"
       JOIN service_categories sc ON st."categoryId" = sc."id"
-      JOIN organizations o ON s."organizationId" = o."id"
-      JOIN location_services ls ON ls."serviceId" = s."id"
-      JOIN organization_addresses oa ON oa."id" = ls."locationId"
+      LEFT JOIN organizations o ON s."organizationId" = o."id"
+      LEFT JOIN location_services ls ON ls."serviceId" = s."id"
+      LEFT JOIN organization_addresses oa ON oa."id" = ls."locationId"
       LEFT JOIN service_prices sv ON sv."serviceId" = s."id"
       WHERE ${whereClause}
       ORDER BY ${orderBy}
@@ -356,12 +356,12 @@ export class SearchService {
 
     // Services suggest
     const serviceSql = `
-      SELECT DISTINCT s."id", s."name", o."name" AS "orgName"
+      SELECT DISTINCT ON (s."name") s."id", s."name", o."name" AS "orgName"
       FROM services s
-      JOIN organizations o ON s."organizationId" = o."id"
+      LEFT JOIN organizations o ON s."organizationId" = o."id"
       WHERE s."isActive" = true
         AND s."name" ILIKE $1
-      ORDER BY similarity(s."name", $2) DESC
+      ORDER BY s."name", similarity(s."name", $2) DESC
       LIMIT $3
     `;
 
