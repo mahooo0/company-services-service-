@@ -1,37 +1,30 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
-import { SearchQueryDto, SuggestQueryDto } from './dto/search-query.dto';
+import { SearchQueryDto, SuggestQueryDto } from './dto';
 
 @ApiTags('search')
 @Controller('search')
 export class SearchController {
   constructor(private readonly searchService: SearchService) {}
 
-  @Get('services')
+  @Get()
   @ApiOperation({
-    summary: 'Поиск услуг по точкам с фильтрами, гео и сортировкой',
+    summary: 'Поиск компаний и услуг',
     description:
-      'Каждый результат = услуга + конкретная точка (филиал) где она доступна. ' +
-      'Если у компании 3 точки и услуга доступна в 2 из них — вернётся 2 результата.',
+      'Единый поиск: возвращает компании с точками и услугами. ' +
+      'Мультиязычный (укр/рус/eng). Матчит по названию услуги, компании, категории, типу. ' +
+      'Поддержка гео-фильтра, рейтинга, цены, сортировки.',
   })
-  searchServices(@Query() query: SearchQueryDto) {
-    return this.searchService.searchServices(query);
-  }
-
-  @Get('branches')
-  @ApiOperation({
-    summary: 'Поиск точек (филиалов) с фильтрами, гео и сортировкой',
-    description:
-      'Каждый результат = точка (филиал) организации с количеством доступных услуг.',
-  })
-  searchBranches(@Query() query: SearchQueryDto) {
-    return this.searchService.searchBranches(query);
+  search(@Query() query: SearchQueryDto) {
+    return this.searchService.search(query);
   }
 
   @Get('suggest')
   @ApiOperation({
-    summary: 'Автокомплит по услугам и компаниям',
+    summary: 'Автокомплит по услугам, компаниям и категориям',
+    description:
+      'Мультиязычные подсказки при вводе. Возвращает услуги, категории и компании.',
   })
   suggest(@Query() query: SuggestQueryDto) {
     return this.searchService.suggest(query);

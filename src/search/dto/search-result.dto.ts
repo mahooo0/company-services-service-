@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-export class ServiceSearchResultDto {
+export class SearchServiceDto {
   @ApiProperty()
   id: string;
 
@@ -12,9 +12,6 @@ export class ServiceSearchResultDto {
 
   @ApiPropertyOptional()
   price?: number;
-
-  @ApiProperty()
-  isActive: boolean;
 
   @ApiPropertyOptional()
   imageId?: string;
@@ -31,43 +28,45 @@ export class ServiceSearchResultDto {
   @ApiProperty()
   categorySlug: string;
 
-  @ApiProperty()
-  organizationId: string;
-
-  @ApiProperty()
-  organizationName: string;
-
   @ApiPropertyOptional()
-  organizationAvatar?: string;
-
-  @ApiProperty()
-  organizationRating: number;
-
-  @ApiProperty()
-  organizationReviewCount: number;
-
-  @ApiProperty({ description: 'ID точки (филиала) где доступна услуга' })
-  branchId: string;
-
-  @ApiPropertyOptional({ description: 'Название точки' })
-  branchName?: string;
-
-  @ApiPropertyOptional({ description: 'Расстояние до точки в км' })
-  distance?: number;
-
-  @ApiPropertyOptional({ description: 'Адрес точки' })
-  branchAddress?: string;
-
-  @ApiPropertyOptional({ description: 'Город точки' })
-  branchCity?: string;
+  variations?: { id: string; name: string; price: number }[];
 }
 
-export class OrganizationSearchResultDto {
+export class SearchBranchDto {
   @ApiProperty()
   id: string;
 
+  @ApiPropertyOptional()
+  name?: string;
+
+  @ApiPropertyOptional()
+  address?: string;
+
+  @ApiPropertyOptional()
+  city?: string;
+
   @ApiProperty()
-  name: string;
+  lat: number;
+
+  @ApiProperty()
+  lon: number;
+
+  @ApiPropertyOptional()
+  distance?: number;
+
+  @ApiPropertyOptional()
+  workTime?: any;
+}
+
+export class SearchOrganizationDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiPropertyOptional()
+  name?: string;
+
+  @ApiPropertyOptional()
+  slug?: string;
 
   @ApiPropertyOptional()
   category?: string;
@@ -83,29 +82,22 @@ export class OrganizationSearchResultDto {
 
   @ApiProperty()
   reviewCount: number;
+}
 
-  @ApiProperty({ description: 'Кол-во услуг в этой точке' })
-  serviceCount: number;
+export class SearchResultItemDto {
+  @ApiProperty({ type: SearchOrganizationDto })
+  organization: SearchOrganizationDto;
 
-  @ApiProperty({ description: 'ID точки (филиала)' })
-  branchId: string;
+  @ApiPropertyOptional({ type: SearchBranchDto })
+  branch?: SearchBranchDto;
 
-  @ApiPropertyOptional({ description: 'Название точки' })
-  branchName?: string;
-
-  @ApiPropertyOptional({ description: 'Адрес точки' })
-  branchAddress?: string;
-
-  @ApiPropertyOptional({ description: 'Город точки' })
-  branchCity?: string;
-
-  @ApiPropertyOptional({ description: 'Расстояние до точки в км' })
-  distance?: number;
+  @ApiProperty({ type: [SearchServiceDto] })
+  services: SearchServiceDto[];
 }
 
 export class SuggestResultDto {
-  @ApiProperty({ enum: ['service', 'organization'] })
-  type: 'service' | 'organization';
+  @ApiProperty({ enum: ['service', 'organization', 'category'] })
+  type: 'service' | 'organization' | 'category';
 
   @ApiProperty()
   id: string;
@@ -115,24 +107,4 @@ export class SuggestResultDto {
 
   @ApiPropertyOptional()
   extra?: string;
-}
-
-export class PaginatedResultDto<T> {
-  @ApiProperty()
-  data: T[];
-
-  @ApiProperty()
-  total: number;
-
-  @ApiProperty()
-  page: number;
-
-  @ApiProperty()
-  limit: number;
-
-  @ApiProperty()
-  totalPages: number;
-
-  @ApiProperty()
-  hasMore: boolean;
 }
