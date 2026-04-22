@@ -13,6 +13,46 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Денормализованная организация (синхронизация через RabbitMQ)
+model Organization {
+  id            String   @id
+  name          String
+  slug          String?
+  category      String?
+  description   String?
+  avatar        String?
+  averageRating Float    @default(0)
+  reviewCount   Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  addresses OrganizationAddress[]
+
+  @@index([name])
+  @@map("organizations")
+}
+
+// Денормализованные точки (филиалы) организации (синхронизация через RabbitMQ)
+model OrganizationAddress {
+  id             String  @id
+  organizationId String
+  name           String?
+  city           String?
+  state          String?
+  country        String?
+  address        String?
+  lat            Float   @db.DoublePrecision
+  lon            Float   @db.DoublePrecision
+  workTime       Json?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([lat, lon])
+  @@map("organization_addresses")
+}
+
 // Категории типов услуг (vetClinicsFilter, groomingFilter, etc.)
 model ServiceCategory {
   id        String   @id @default(uuid())

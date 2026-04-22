@@ -21,6 +21,7 @@ import { SpecialistsModule } from './specialists/specialists.module';
 import { SchedulesModule } from './schedules/schedules.module';
 import { ConsumersModule } from './consumers/consumers.module';
 import { EventsModule } from './events/events.module';
+import { SearchModule } from './search/search.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { EventsModule } from './events/events.module';
     SpecialistsModule,
     SchedulesModule,
     ConsumersModule,
+    SearchModule,
   ],
   controllers: [AppController],
   providers: [AppService],
