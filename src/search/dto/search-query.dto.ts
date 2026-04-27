@@ -14,6 +14,7 @@ import { Type } from 'class-transformer';
 
 export enum SearchSortBy {
   RELEVANCE = 'relevance',
+  NAME = 'name',
   DISTANCE = 'distance',
   RATING = 'rating',
   PRICE_ASC = 'price_asc',

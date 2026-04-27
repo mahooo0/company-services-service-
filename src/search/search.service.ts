@@ -218,6 +218,9 @@ export class SearchService {
     // Сортировка
     let orderBy: string;
     switch (query.sort) {
+      case SearchSortBy.NAME:
+        orderBy = 'o."name" ASC NULLS LAST';
+        break;
       case SearchSortBy.DISTANCE:
         orderBy = hasGeo ? 'distance ASC NULLS LAST' : 'o."averageRating" DESC';
         break;
