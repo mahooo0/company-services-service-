@@ -286,7 +286,13 @@ export class SearchService {
       JOIN service_categories sc ON st."categoryId" = sc."id"
       LEFT JOIN organizations o ON s."organizationId" = o."id"
       LEFT JOIN location_services ls ON ls."serviceId" = s."id"
-      LEFT JOIN organization_addresses oa ON oa."id" = ls."locationId"
+      LEFT JOIN LATERAL (
+        SELECT oa2.*
+        FROM organization_addresses oa2
+        WHERE oa2."id" = ls."locationId"
+           OR (ls."locationId" IS NULL AND oa2."organizationId" = s."organizationId")
+        LIMIT 1
+      ) oa ON true
       LEFT JOIN service_min_prices sp ON sp."serviceId" = s."id"
       WHERE ${whereClause}
       ORDER BY ${orderBy}
