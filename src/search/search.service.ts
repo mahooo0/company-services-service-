@@ -192,6 +192,13 @@ export class SearchService {
       paramIndex++;
     }
 
+    // Фильтр по категории организации (PageCategory)
+    if (query.orgCategory) {
+      conditions.push(`o."category" = $${paramIndex}`);
+      params.push(query.orgCategory);
+      paramIndex++;
+    }
+
     // Гео-фильтр
     let distanceExpr = 'NULL::float';
     let geoCondition = '';

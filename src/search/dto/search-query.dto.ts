@@ -91,6 +91,14 @@ export class SearchQueryDto {
   typeId?: string;
 
   @ApiPropertyOptional({
+    description: 'Категория организации (VET_CLINICS, GROOMING, WALKING, HOTELS, CYNOLOGISTS, PET_STORES, BREEDERS, PHOTOGRAPHERS, TRANSPORTATION, SHELTERS)',
+    example: 'GROOMING',
+  })
+  @IsString()
+  @IsOptional()
+  orgCategory?: string;
+
+  @ApiPropertyOptional({
     description: 'Сортировка',
     enum: SearchSortBy,
     default: SearchSortBy.RELEVANCE,
