@@ -44,6 +44,7 @@ model OrganizationAddress {
   address        String?
   lat            Float   @db.DoublePrecision
   lon            Float   @db.DoublePrecision
+  location       Unsupported("geography(Point, 4326)")?
   workTime       Json?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

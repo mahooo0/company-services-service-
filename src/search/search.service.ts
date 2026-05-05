@@ -199,23 +199,27 @@ export class SearchService {
       paramIndex++;
     }
 
-    // Гео-фильтр
+    // Гео-фильтр через PostGIS (использует GIST-индекс на oa."location").
+    // ST_MakePoint принимает (lon, lat); ST_Distance/ST_DWithin на geography
+    // работают в метрах — переводим в км для сохранения формата ответа.
     let distanceExpr = 'NULL::float';
     let geoCondition = '';
     if (hasGeo) {
-      distanceExpr = `(
-        6371 * acos(
-          LEAST(1.0,
-            cos(radians($${paramIndex})) * cos(radians(oa."lat"))
-            * cos(radians(oa."lon") - radians($${paramIndex + 1}))
-            + sin(radians($${paramIndex})) * sin(radians(oa."lat"))
-          )
-        )
-      )`;
+      const latParam = paramIndex;
+      const lonParam = paramIndex + 1;
+      distanceExpr = `(ST_Distance(
+        oa."location",
+        ST_SetSRID(ST_MakePoint($${lonParam}, $${latParam}), 4326)::geography
+      ) / 1000.0)`;
       params.push(query.lat, query.lon);
       paramIndex += 2;
 
-      geoCondition = ` AND oa."lat" IS NOT NULL AND ${distanceExpr} <= $${paramIndex}`;
+      const radiusParam = paramIndex;
+      geoCondition = ` AND oa."location" IS NOT NULL AND ST_DWithin(
+        oa."location",
+        ST_SetSRID(ST_MakePoint($${lonParam}, $${latParam}), 4326)::geography,
+        $${radiusParam} * 1000
+      )`;
       params.push(query.radius);
       paramIndex++;
     }
