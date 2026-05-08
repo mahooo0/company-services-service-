@@ -1,6 +1,78 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
-import { SearchQueryDto, SearchSortBy, SuggestQueryDto } from './dto';
+import {
+  SearchQueryDto,
+  SearchSortBy,
+  SuggestQueryDto,
+  SuggestResponseDto,
+  SuggestCategoryDto,
+  SuggestBusinessDto,
+  SuggestServiceDto,
+} from './dto';
+import { classifyIntent } from './intent-classifier';
+import { isOpenNow, WorkTime } from './is-open-now';
+import categoriesData from './categories.json';
+
+type SeededCategory = {
+  id: string;
+  names: { ru: string; uk: string; en: string; az: string };
+  synonyms: string[];
+  icon?: string;
+  color?: string;
+  parentCategory?: string | null;
+  popularity?: number;
+  businessCountByCity?: Record<string, number>;
+};
+
+const SEEDED_CATEGORIES = categoriesData as SeededCategory[];
+
+// Pre-build category synonym set (lowercased) for intent classifier.
+const CATEGORY_SYNONYMS = new Set<string>(
+  SEEDED_CATEGORIES.flatMap(c =>
+    [...c.synonyms, ...Object.values(c.names)].map(s => s.toLowerCase().trim()),
+  ),
+);
+
+// Naive haversine — km. Sufficient for /suggest distance display (PostGIS not
+// required here per Phase 7 plan; main /search endpoint still uses PostGIS).
+function haversineKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  const R = 6371; // km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) ** 2;
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 100) / 100;
+}
+
+// Highlight first variant substring in text, wrap with <em>...</em>.
+// Returns single-element array (matches content-search highlight shape).
+function wrapHighlight(
+  text: string,
+  variants: string[],
+): string[] | undefined {
+  if (!text) return undefined;
+  const lower = text.toLowerCase();
+  for (const v of variants) {
+    if (v.length < 2) continue;
+    const idx = lower.indexOf(v.toLowerCase());
+    if (idx >= 0) {
+      const before = text.slice(0, idx);
+      const match = text.slice(idx, idx + v.length);
+      const after = text.slice(idx + v.length);
+      return [`${before}<em>${match}</em>${after}`];
+    }
+  }
+  return undefined;
+}
 
 // Транслитерация кириллица ↔ латиница для мультиязычного поиска
 const TRANSLIT_MAP: Record<string, string> = {
@@ -563,85 +635,232 @@ export class SearchService {
     };
   }
 
+  // Lazy cache (60s TTL) for service-name synonyms used by intent classifier.
+  private serviceSynonymsCache: Set<string> | null = null;
+  private serviceSynonymsCacheTs = 0;
+
+  private async getServiceSynonyms(): Promise<Set<string>> {
+    const now = Date.now();
+    if (
+      this.serviceSynonymsCache &&
+      now - this.serviceSynonymsCacheTs < 60_000
+    ) {
+      return this.serviceSynonymsCache;
+    }
+    const types = await this.prisma.serviceType.findMany({
+      select: { name: true, slug: true },
+    });
+    const set = new Set<string>();
+    for (const t of types) {
+      set.add(t.name.toLowerCase());
+      set.add(t.slug.toLowerCase());
+    }
+    this.serviceSynonymsCache = set;
+    this.serviceSynonymsCacheTs = now;
+    return set;
+  }
+
   /**
-   * Автокомплит — подсказки при вводе.
-   * Ищет по услугам, компаниям, категориям. Мультиязычный.
+   * Phase 7 typed-sections autocomplete.
+   * Returns { query, intent, sections: { categories, businesses, services }, took, cached }.
+   * Categories source: static JSON seed (22 multilingual entries).
+   * Businesses/services: Postgres ILIKE on org/service names.
    */
-  async suggest(query: SuggestQueryDto): Promise<any[]> {
-    const variants = generateSearchVariants(query.q);
-    const suggestLimit = query.limit ?? 5;
+  async suggest(query: SuggestQueryDto): Promise<SuggestResponseDto> {
+    const t0 = Date.now();
+    const q = query.q.trim();
+    const lang = query.lang ?? 'ru';
+    const variants = generateSearchVariants(q);
 
-    const likeParams = variants.map(v => `%${v}%`);
+    const [categories, businesses, services] = await Promise.all([
+      this.findCategoriesFromSeed(variants, lang),
+      this.findBusinessesPg(variants, query.lat, query.lon),
+      this.findServicesPg(variants),
+    ]);
 
-    // Услуги
-    const serviceSql = `
-      SELECT DISTINCT ON (s."name") s."id", s."name", 'service' AS type,
-        o."name" AS "orgName", o."slug" AS "orgSlug", o."id" AS "orgId"
+    const serviceSynonyms = await this.getServiceSynonyms();
+    const intent = classifyIntent({
+      query: q,
+      categorySynonyms: CATEGORY_SYNONYMS,
+      serviceSynonyms,
+    });
+
+    return {
+      query: q,
+      intent,
+      sections: { categories, businesses, services },
+      took: Date.now() - t0,
+      cached: false,
+    };
+  }
+
+  // -------- /suggest helpers --------
+
+  private findCategoriesFromSeed(
+    variants: string[],
+    _lang: 'ru' | 'uk' | 'en',
+  ): SuggestCategoryDto[] {
+    const lowerVariants = variants.map(v => v.toLowerCase());
+    type Scored = { cat: SeededCategory; score: number };
+    const scored: Scored[] = [];
+
+    for (const cat of SEEDED_CATEGORIES) {
+      const haystack: string[] = [
+        cat.id.toLowerCase(),
+        ...cat.synonyms.map(s => s.toLowerCase()),
+        ...Object.values(cat.names).map(n => n.toLowerCase()),
+      ];
+      let score = 0;
+      for (const v of lowerVariants) {
+        for (const h of haystack) {
+          if (h.includes(v)) score += 1;
+        }
+      }
+      if (score > 0) scored.push({ cat, score });
+    }
+
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const popA = a.cat.popularity ?? 0;
+      const popB = b.cat.popularity ?? 0;
+      return popB - popA;
+    });
+
+    return scored.slice(0, 5).map(({ cat }) => ({
+      type: 'category' as const,
+      id: cat.id,
+      names: cat.names,
+      icon: cat.icon,
+      color: cat.color,
+      popularity: cat.popularity,
+    }));
+  }
+
+  private async findBusinessesPg(
+    variants: string[],
+    lat?: number,
+    lon?: number,
+  ): Promise<SuggestBusinessDto[]> {
+    if (variants.length === 0) return [];
+
+    const params: any[] = [];
+    let pIdx = 1;
+    const likeClauses: string[] = [];
+    for (const v of variants) {
+      params.push(`%${v}%`);
+      likeClauses.push(`(o."name" ILIKE $${pIdx} OR o."category" ILIKE $${pIdx})`);
+      pIdx++;
+    }
+
+    const sql = `
+      SELECT
+        o."id",
+        o."name",
+        o."category",
+        COALESCE(o."averageRating", 0) AS rating,
+        o."avatar" AS banner,
+        oa."lat" AS "addrLat",
+        oa."lon" AS "addrLon",
+        oa."workTime" AS "workTime"
+      FROM organizations o
+      LEFT JOIN LATERAL (
+        SELECT * FROM organization_addresses
+        WHERE "organizationId" = o."id"
+        ORDER BY "id"
+        LIMIT 1
+      ) oa ON true
+      WHERE o."isActive" = true
+        AND (${likeClauses.join(' OR ')})
+      ORDER BY o."averageRating" DESC NULLS LAST, o."name" ASC
+      LIMIT 5
+    `;
+
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
+
+    return rows.map(r => {
+      const dto: SuggestBusinessDto = {
+        type: 'business',
+        id: r.id,
+        name: r.name,
+      };
+      if (r.category) dto.category = r.category;
+      if (r.rating != null) dto.rating = Number(r.rating);
+      if (r.banner) dto.banner = r.banner;
+
+      if (
+        lat != null &&
+        lon != null &&
+        r.addrLat != null &&
+        r.addrLon != null
+      ) {
+        dto.distanceKm = haversineKm(
+          lat,
+          lon,
+          Number(r.addrLat),
+          Number(r.addrLon),
+        );
+      }
+
+      if (r.workTime) {
+        dto.isOpenNow = isOpenNow(r.workTime as WorkTime);
+      }
+
+      const hl = wrapHighlight(r.name ?? '', variants);
+      if (hl) dto.highlight = { name: hl };
+
+      return dto;
+    });
+  }
+
+  private async findServicesPg(
+    variants: string[],
+  ): Promise<SuggestServiceDto[]> {
+    if (variants.length === 0) return [];
+
+    const params: any[] = [];
+    let pIdx = 1;
+    const likeClauses: string[] = [];
+    for (const v of variants) {
+      params.push(`%${v}%`);
+      likeClauses.push(`s."name" ILIKE $${pIdx}`);
+      pIdx++;
+    }
+
+    const sql = `
+      SELECT
+        s."id",
+        s."name",
+        s."organizationId",
+        o."name" AS "organizationName",
+        o."category" AS "organizationCategory",
+        COALESCE(o."averageRating", 0) AS "organizationRating"
       FROM services s
       LEFT JOIN organizations o ON s."organizationId" = o."id"
       WHERE s."isActive" = true
-        AND (${variants.map((_, i) => `s."name" ILIKE $${i + 1}`).join(' OR ')})
-      ORDER BY s."name"
-      LIMIT $${variants.length + 1}
+        AND (${likeClauses.join(' OR ')})
+      ORDER BY s."name" ASC
+      LIMIT 5
     `;
 
-    // Категории
-    const categorySql = `
-      SELECT sc."id", sc."name", 'category' AS type, sc."slug" AS extra
-      FROM service_categories sc
-      WHERE ${variants.map((_, i) => `(sc."name" ILIKE $${i + 1} OR sc."slug" ILIKE $${i + 1})`).join(' OR ')}
-      LIMIT $${variants.length + 1}
-    `;
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
 
-    // Компании
-    const orgSql = `
-      SELECT o."id", o."name", o."slug", 'organization' AS type, o."category" AS extra
-      FROM organizations o
-      WHERE o."isActive" = true
-        AND (${variants.map((_, i) => `o."name" ILIKE $${i + 1}`).join(' OR ')})
-      LIMIT $${variants.length + 1}
-    `;
-
-    const [services, categories, orgs] = await Promise.all([
-      this.prisma.$queryRawUnsafe<any[]>(
-        serviceSql,
-        ...likeParams,
-        suggestLimit,
-      ),
-      this.prisma.$queryRawUnsafe<any[]>(
-        categorySql,
-        ...likeParams,
-        suggestLimit,
-      ),
-      this.prisma.$queryRawUnsafe<any[]>(orgSql, ...likeParams, suggestLimit),
-    ]);
-
-    const results = [
-      ...categories.map(c => ({
-        type: 'category',
-        id: c.id,
-        name: c.name,
-        extra: c.extra,
-      })),
-      ...services.map(s => ({
+    return rows.map(r => {
+      const dto: SuggestServiceDto = {
         type: 'service',
-        id: s.id,
-        name: s.name,
-        organization: {
-          id: s.orgId,
-          name: s.orgName,
-          slug: s.orgSlug,
-        },
-      })),
-      ...orgs.map(o => ({
-        type: 'organization',
-        id: o.id,
-        name: o.name,
-        slug: o.slug,
-        extra: o.extra,
-      })),
-    ];
+        id: r.id,
+        name: r.name,
+      };
+      if (r.organizationId) dto.organizationId = r.organizationId;
+      if (r.organizationName) dto.organizationName = r.organizationName;
+      if (r.organizationCategory)
+        dto.organizationCategory = r.organizationCategory;
+      if (r.organizationRating != null)
+        dto.organizationRating = Number(r.organizationRating);
 
-    return results.slice(0, suggestLimit);
+      const hl = wrapHighlight(r.name ?? '', variants);
+      if (hl) dto.highlight = { name: hl };
+
+      return dto;
+    });
   }
 }

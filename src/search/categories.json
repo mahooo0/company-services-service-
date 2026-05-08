@@ -1,0 +1,495 @@
+[
+  {
+    "id": "grooming",
+    "names": {
+      "ru": "Грумминг",
+      "uk": "Грумінг",
+      "en": "Grooming",
+      "az": "Qrooming"
+    },
+    "synonyms": [
+      "груминг",
+      "грумінг",
+      "grooming",
+      "стрижка",
+      "стрижка собак",
+      "грум"
+    ],
+    "icon": "✂️",
+    "color": "#FF6B6B",
+    "parentCategory": null,
+    "popularity": 0.85,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "veterinary",
+    "names": {
+      "ru": "Ветеринария",
+      "uk": "Ветеринарія",
+      "en": "Veterinary",
+      "az": "Veterinariya"
+    },
+    "synonyms": [
+      "ветеринар",
+      "ветеринарія",
+      "vet",
+      "veterinarian",
+      "ветклиника",
+      "ветлікар",
+      "veterinary clinic"
+    ],
+    "icon": "🩺",
+    "color": "#4ECDC4",
+    "parentCategory": null,
+    "popularity": 0.95,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "pet-shop",
+    "names": {
+      "ru": "Зоомагазин",
+      "uk": "Зоомагазин",
+      "en": "Pet shop",
+      "az": "Heyvan dükanı"
+    },
+    "synonyms": [
+      "зоомагазин",
+      "pet shop",
+      "petshop",
+      "зоо",
+      "корм",
+      "товары для животных"
+    ],
+    "icon": "🛍️",
+    "color": "#FFD93D",
+    "parentCategory": null,
+    "popularity": 0.75,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "pet-hotel",
+    "names": {
+      "ru": "Зоогостиница",
+      "uk": "Зооготель",
+      "en": "Pet hotel",
+      "az": "Heyvan oteli"
+    },
+    "synonyms": [
+      "зоогостиница",
+      "зооготель",
+      "pet hotel",
+      "передержка",
+      "boarding",
+      "перетримка"
+    ],
+    "icon": "🏨",
+    "color": "#95E1D3",
+    "parentCategory": null,
+    "popularity": 0.6,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "training",
+    "names": {
+      "ru": "Дрессировка",
+      "uk": "Дресирування",
+      "en": "Training",
+      "az": "Təlim"
+    },
+    "synonyms": [
+      "дрессировка",
+      "дресирування",
+      "training",
+      "обучение",
+      "кинолог",
+      "dog training",
+      "навчання"
+    ],
+    "icon": "🎓",
+    "color": "#A8E6CF",
+    "parentCategory": null,
+    "popularity": 0.7,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "walking",
+    "names": {
+      "ru": "Выгул",
+      "uk": "Вигул",
+      "en": "Dog walking",
+      "az": "Gəzdirmə"
+    },
+    "synonyms": [
+      "выгул",
+      "вигул",
+      "dog walking",
+      "прогулка",
+      "walker",
+      "выгул собак"
+    ],
+    "icon": "🚶",
+    "color": "#FFB6B9",
+    "parentCategory": null,
+    "popularity": 0.55,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "taxi",
+    "names": {
+      "ru": "Зоотакси",
+      "uk": "Зоотаксі",
+      "en": "Pet taxi",
+      "az": "Heyvan taksisi"
+    },
+    "synonyms": [
+      "зоотакси",
+      "зоотаксі",
+      "pet taxi",
+      "перевозка",
+      "transport",
+      "перевезення"
+    ],
+    "icon": "🚕",
+    "color": "#FFE066",
+    "parentCategory": null,
+    "popularity": 0.4,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "breeding",
+    "names": {
+      "ru": "Питомник",
+      "uk": "Розплідник",
+      "en": "Breeder",
+      "az": "Yetişdirici"
+    },
+    "synonyms": [
+      "питомник",
+      "розплідник",
+      "breeder",
+      "kennel",
+      "заводчик",
+      "розведення",
+      "разведение"
+    ],
+    "icon": "🐾",
+    "color": "#C9B1FF",
+    "parentCategory": null,
+    "popularity": 0.5,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "pharmacy",
+    "names": {
+      "ru": "Зооаптека",
+      "uk": "Зооаптека",
+      "en": "Pet pharmacy",
+      "az": "Heyvan aptekı"
+    },
+    "synonyms": [
+      "зооаптека",
+      "pet pharmacy",
+      "vet pharmacy",
+      "лекарства",
+      "ліки",
+      "ветаптека"
+    ],
+    "icon": "💊",
+    "color": "#B5EAEA",
+    "parentCategory": null,
+    "popularity": 0.5,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "nutrition",
+    "names": {
+      "ru": "Корма",
+      "uk": "Корми",
+      "en": "Pet food",
+      "az": "Yemlər"
+    },
+    "synonyms": [
+      "корм",
+      "корма",
+      "корми",
+      "pet food",
+      "feed",
+      "питание",
+      "харчування"
+    ],
+    "icon": "🥣",
+    "color": "#FFC4A3",
+    "parentCategory": null,
+    "popularity": 0.7,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "grooming-cats",
+    "names": {
+      "ru": "Груминг кошек",
+      "uk": "Грумінг котів",
+      "en": "Cat grooming",
+      "az": "Pişik qroominqı"
+    },
+    "synonyms": [
+      "груминг кошек",
+      "грумінг котів",
+      "cat grooming",
+      "стрижка кошек",
+      "стрижка котів"
+    ],
+    "icon": "🐈",
+    "color": "#F8B195",
+    "parentCategory": null,
+    "popularity": 0.45,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "dental",
+    "names": {
+      "ru": "Стоматология",
+      "uk": "Стоматологія",
+      "en": "Pet dental",
+      "az": "Diş müalicəsi"
+    },
+    "synonyms": [
+      "стоматология",
+      "стоматологія",
+      "pet dental",
+      "чистка зубов",
+      "чистка зубів",
+      "dental care"
+    ],
+    "icon": "🦷",
+    "color": "#F67280",
+    "parentCategory": null,
+    "popularity": 0.35,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "surgery",
+    "names": {
+      "ru": "Хирургия",
+      "uk": "Хірургія",
+      "en": "Surgery",
+      "az": "Cərrahiyyə"
+    },
+    "synonyms": [
+      "хирургия",
+      "хірургія",
+      "surgery",
+      "операция",
+      "операція",
+      "хирург"
+    ],
+    "icon": "⚕️",
+    "color": "#C06C84",
+    "parentCategory": null,
+    "popularity": 0.55,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "vaccination",
+    "names": {
+      "ru": "Вакцинация",
+      "uk": "Вакцинація",
+      "en": "Vaccination",
+      "az": "Peyvənd"
+    },
+    "synonyms": [
+      "вакцинация",
+      "вакцинація",
+      "vaccination",
+      "прививка",
+      "щеплення",
+      "vaccine"
+    ],
+    "icon": "💉",
+    "color": "#6C5B7B",
+    "parentCategory": null,
+    "popularity": 0.8,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "diagnostics",
+    "names": {
+      "ru": "Диагностика",
+      "uk": "Діагностика",
+      "en": "Diagnostics",
+      "az": "Diaqnostika"
+    },
+    "synonyms": [
+      "диагностика",
+      "діагностика",
+      "diagnostics",
+      "узи",
+      "узд",
+      "анализы",
+      "аналізи",
+      "lab"
+    ],
+    "icon": "🔬",
+    "color": "#355C7D",
+    "parentCategory": null,
+    "popularity": 0.5,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "aquarium",
+    "names": {
+      "ru": "Аквариумистика",
+      "uk": "Акваріумістика",
+      "en": "Aquarium",
+      "az": "Akvarium"
+    },
+    "synonyms": [
+      "аквариум",
+      "акваріум",
+      "aquarium",
+      "рыбки",
+      "рибки",
+      "fish tank"
+    ],
+    "icon": "🐠",
+    "color": "#2A9D8F",
+    "parentCategory": null,
+    "popularity": 0.3,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "birds",
+    "names": {
+      "ru": "Орнитология",
+      "uk": "Орнітологія",
+      "en": "Avian care",
+      "az": "Quş baxımı"
+    },
+    "synonyms": [
+      "орнитолог",
+      "орнітолог",
+      "птицы",
+      "птахи",
+      "avian",
+      "попугай",
+      "папуга"
+    ],
+    "icon": "🦜",
+    "color": "#E9C46A",
+    "parentCategory": null,
+    "popularity": 0.25,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "exotic",
+    "names": {
+      "ru": "Экзотика",
+      "uk": "Екзотика",
+      "en": "Exotic pets",
+      "az": "Eqzotik heyvanlar"
+    },
+    "synonyms": [
+      "экзотика",
+      "екзотика",
+      "exotic",
+      "рептилия",
+      "рептилія",
+      "reptile",
+      "змея",
+      "змія"
+    ],
+    "icon": "🦎",
+    "color": "#F4A261",
+    "parentCategory": null,
+    "popularity": 0.2,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "photography",
+    "names": {
+      "ru": "Фотосессия",
+      "uk": "Фотосесія",
+      "en": "Pet photography",
+      "az": "Heyvan fotoçəkilişi"
+    },
+    "synonyms": [
+      "фотосессия",
+      "фотосесія",
+      "pet photo",
+      "photographer",
+      "фотограф"
+    ],
+    "icon": "📷",
+    "color": "#E76F51",
+    "parentCategory": null,
+    "popularity": 0.3,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "accessories",
+    "names": {
+      "ru": "Аксессуары",
+      "uk": "Аксесуари",
+      "en": "Accessories",
+      "az": "Aksesuarlar"
+    },
+    "synonyms": [
+      "аксессуары",
+      "аксесуари",
+      "accessories",
+      "ошейник",
+      "нашийник",
+      "поводок",
+      "повідець",
+      "leash",
+      "collar"
+    ],
+    "icon": "🎀",
+    "color": "#F28482",
+    "parentCategory": null,
+    "popularity": 0.45,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "shelter",
+    "names": {
+      "ru": "Приют",
+      "uk": "Притулок",
+      "en": "Shelter",
+      "az": "Sığınacaq"
+    },
+    "synonyms": [
+      "приют",
+      "притулок",
+      "shelter",
+      "rescue",
+      "усыновление",
+      "adoption"
+    ],
+    "icon": "🏠",
+    "color": "#84A59D",
+    "parentCategory": null,
+    "popularity": 0.4,
+    "businessCountByCity": {}
+  },
+  {
+    "id": "insurance",
+    "names": {
+      "ru": "Страхование",
+      "uk": "Страхування",
+      "en": "Pet insurance",
+      "az": "Sığorta"
+    },
+    "synonyms": [
+      "страхование",
+      "страхування",
+      "pet insurance",
+      "insurance",
+      "страховка"
+    ],
+    "icon": "🛡️",
+    "color": "#3D5A80",
+    "parentCategory": null,
+    "popularity": 0.2,
+    "businessCountByCity": {}
+  }
+]

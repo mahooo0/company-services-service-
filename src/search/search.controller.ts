@@ -1,7 +1,11 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
-import { SearchQueryDto, SuggestQueryDto } from './dto';
+import {
+  SearchQueryDto,
+  SuggestQueryDto,
+  SuggestResponseDto,
+} from './dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -22,11 +26,15 @@ export class SearchController {
 
   @Get('suggest')
   @ApiOperation({
-    summary: 'Автокомплит по услугам, компаниям и категориям',
+    summary: 'Phase 7 typed-sections autocomplete',
     description:
-      'Мультиязычные подсказки при вводе. Возвращает услуги, категории и компании.',
+      'Возвращает { query, intent, sections: { categories, businesses, services }, took, cached }. ' +
+      'Категории — из JSON seed (22 multilingual). Businesses/services — Postgres ILIKE. ' +
+      'q ≥ 2 chars (DTO @MinLength). lat/lon опциональны для distanceKm.',
   })
-  suggest(@Query() query: SuggestQueryDto) {
+  @ApiResponse({ status: 200, type: SuggestResponseDto })
+  @ApiResponse({ status: 400, description: 'Validation error (e.g. q < 2 chars)' })
+  suggest(@Query() query: SuggestQueryDto): Promise<SuggestResponseDto> {
     return this.searchService.suggest(query);
   }
 }

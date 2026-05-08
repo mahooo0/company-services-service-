@@ -91,7 +91,8 @@ export class SearchQueryDto {
   typeId?: string;
 
   @ApiPropertyOptional({
-    description: 'Категория организации (VET_CLINICS, GROOMING, WALKING, HOTELS, CYNOLOGISTS, PET_STORES, BREEDERS, PHOTOGRAPHERS, TRANSPORTATION, SHELTERS)',
+    description:
+      'Категория организации (VET_CLINICS, GROOMING, WALKING, HOTELS, CYNOLOGISTS, PET_STORES, BREEDERS, PHOTOGRAPHERS, TRANSPORTATION, SHELTERS)',
     example: 'GROOMING',
   })
   @IsString()
@@ -126,35 +127,4 @@ export class SearchQueryDto {
   limit?: number = 20;
 }
 
-export class SuggestQueryDto {
-  @ApiPropertyOptional({
-    description: 'Текст для автокомплита (мин 2 символа)',
-    example: 'стр',
-  })
-  @IsString()
-  @MinLength(2)
-  q: string;
-
-  @ApiPropertyOptional({ description: 'Широта пользователя' })
-  @Type(() => Number)
-  @IsNumber()
-  @IsOptional()
-  lat?: number;
-
-  @ApiPropertyOptional({ description: 'Долгота пользователя' })
-  @Type(() => Number)
-  @IsNumber()
-  @IsOptional()
-  lon?: number;
-
-  @ApiPropertyOptional({
-    description: 'Максимум подсказок (1-10)',
-    default: 5,
-  })
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(10)
-  @IsOptional()
-  limit?: number = 5;
-}
+// SuggestQueryDto moved to ./suggest-query.dto.ts (Phase 7 port — quick-260508-dlw).
