@@ -271,27 +271,27 @@ export class SearchService {
       paramIndex++;
     }
 
-    // Гео-фильтр через PostGIS (использует GIST-индекс на oa."location").
-    // ST_MakePoint принимает (lon, lat); ST_Distance/ST_DWithin на geography
-    // работают в метрах — переводим в км для сохранения формата ответа.
+    // Гео-фильтр через Haversine (PostGIS не установлен в проде Postgres image).
+    // Use plain lat/lon columns + great-circle formula. The btree index
+    // on (lat, lon) is not used for radius queries, but at MVP scale this is
+    // acceptable and matches the pre-PostGIS behavior. To re-enable PostGIS
+    // later, swap the docker image to postgis/postgis and re-add ST_DWithin.
     let distanceExpr = 'NULL::float';
     let geoCondition = '';
     if (hasGeo) {
-      const latParam = paramIndex;
-      const lonParam = paramIndex + 1;
-      distanceExpr = `(ST_Distance(
-        oa."location",
-        ST_SetSRID(ST_MakePoint($${lonParam}, $${latParam}), 4326)::geography
-      ) / 1000.0)`;
+      distanceExpr = `(
+        6371 * acos(
+          LEAST(1.0,
+            cos(radians($${paramIndex})) * cos(radians(oa."lat"))
+            * cos(radians(oa."lon") - radians($${paramIndex + 1}))
+            + sin(radians($${paramIndex})) * sin(radians(oa."lat"))
+          )
+        )
+      )`;
       params.push(query.lat, query.lon);
       paramIndex += 2;
 
-      const radiusParam = paramIndex;
-      geoCondition = ` AND oa."location" IS NOT NULL AND ST_DWithin(
-        oa."location",
-        ST_SetSRID(ST_MakePoint($${lonParam}, $${latParam}), 4326)::geography,
-        $${radiusParam} * 1000
-      )`;
+      geoCondition = ` AND oa."lat" IS NOT NULL AND ${distanceExpr} <= $${paramIndex}`;
       params.push(query.radius);
       paramIndex++;
     }
@@ -511,21 +511,20 @@ export class SearchService {
       let distanceExprB = 'NULL::float';
       let geoConditionB = '';
       if (hasGeo) {
-        const latParamB = pIdxB;
-        const lonParamB = pIdxB + 1;
-        distanceExprB = `(ST_Distance(
-          oa."location",
-          ST_SetSRID(ST_MakePoint($${lonParamB}, $${latParamB}), 4326)::geography
-        ) / 1000.0)`;
+        // Haversine — see Query A note on PostGIS rollback.
+        distanceExprB = `(
+          6371 * acos(
+            LEAST(1.0,
+              cos(radians($${pIdxB})) * cos(radians(oa."lat"))
+              * cos(radians(oa."lon") - radians($${pIdxB + 1}))
+              + sin(radians($${pIdxB})) * sin(radians(oa."lat"))
+            )
+          )
+        )`;
         paramsB.push(query.lat, query.lon);
         pIdxB += 2;
 
-        const radiusParamB = pIdxB;
-        geoConditionB = ` AND oa."location" IS NOT NULL AND ST_DWithin(
-          oa."location",
-          ST_SetSRID(ST_MakePoint($${lonParamB}, $${latParamB}), 4326)::geography,
-          $${radiusParamB} * 1000
-        )`;
+        geoConditionB = ` AND oa."lat" IS NOT NULL AND ${distanceExprB} <= $${pIdxB}`;
         paramsB.push(query.radius);
         pIdxB++;
       }
