@@ -211,16 +211,17 @@ export class SearchService {
 
       for (const variant of variants) {
         const likeParam = `%${variant}%`;
+        const trgmParam = variant;
         likeClauses.push(`(
-          s."name" ILIKE $${paramIndex}
-          OR o."name" ILIKE $${paramIndex}
-          OR sc."name" ILIKE $${paramIndex}
+          s."name" ILIKE $${paramIndex} OR s."name" % $${paramIndex + 1}
+          OR o."name" ILIKE $${paramIndex} OR o."name" % $${paramIndex + 1}
+          OR sc."name" ILIKE $${paramIndex} OR sc."name" % $${paramIndex + 1}
           OR sc."slug" ILIKE $${paramIndex}
-          OR st."name" ILIKE $${paramIndex}
+          OR st."name" ILIKE $${paramIndex} OR st."name" % $${paramIndex + 1}
           OR st."slug" ILIKE $${paramIndex}
         )`);
-        params.push(likeParam);
-        paramIndex++;
+        params.push(likeParam, trgmParam);
+        paramIndex += 2;
       }
 
       conditions.push(`(${likeClauses.join(' OR ')})`);
@@ -484,15 +485,16 @@ export class SearchService {
       const likeClausesB: string[] = [];
       for (const variant of variantsB) {
         const likeParam = `%${variant}%`;
+        const trgmParam = variant;
         likeClausesB.push(`(
-          o."name" ILIKE $${pIdxB}
-          OR o."category" ILIKE $${pIdxB}
-          OR oa."name" ILIKE $${pIdxB}
-          OR oa."address" ILIKE $${pIdxB}
-          OR oa."city" ILIKE $${pIdxB}
+          o."name" ILIKE $${pIdxB} OR o."name" % $${pIdxB + 1}
+          OR o."category" ILIKE $${pIdxB} OR o."category" % $${pIdxB + 1}
+          OR oa."name" ILIKE $${pIdxB} OR oa."name" % $${pIdxB + 1}
+          OR oa."address" ILIKE $${pIdxB} OR oa."address" % $${pIdxB + 1}
+          OR oa."city" ILIKE $${pIdxB} OR oa."city" % $${pIdxB + 1}
         )`);
-        paramsB.push(likeParam);
-        pIdxB++;
+        paramsB.push(likeParam, trgmParam);
+        pIdxB += 2;
       }
       conditionsB.push(`(${likeClausesB.join(' OR ')})`);
 
@@ -746,9 +748,11 @@ export class SearchService {
     let pIdx = 1;
     const likeClauses: string[] = [];
     for (const v of variants) {
-      params.push(`%${v}%`);
-      likeClauses.push(`(o."name" ILIKE $${pIdx} OR o."category" ILIKE $${pIdx})`);
-      pIdx++;
+      params.push(`%${v}%`, v);
+      likeClauses.push(
+        `(o."name" ILIKE $${pIdx} OR o."name" % $${pIdx + 1} OR o."category" ILIKE $${pIdx} OR o."category" % $${pIdx + 1})`,
+      );
+      pIdx += 2;
     }
 
     const sql = `
@@ -820,9 +824,9 @@ export class SearchService {
     let pIdx = 1;
     const likeClauses: string[] = [];
     for (const v of variants) {
-      params.push(`%${v}%`);
-      likeClauses.push(`s."name" ILIKE $${pIdx}`);
-      pIdx++;
+      params.push(`%${v}%`, v);
+      likeClauses.push(`(s."name" ILIKE $${pIdx} OR s."name" % $${pIdx + 1})`);
+      pIdx += 2;
     }
 
     const sql = `
