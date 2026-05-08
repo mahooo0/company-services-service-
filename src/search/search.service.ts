@@ -386,6 +386,169 @@ export class SearchService {
       }
     }
 
+    // Query B — org-rooted: match orgs whose name/category/branch fields ILIKE
+    // the query variants, EVEN IF they have zero seeded services. This closes
+    // Bug 1 (q=груминг returns 0 because "Грумінг-салон PetStyle" has org+addr
+    // but no services; Query A's `FROM services s` strips it before WHERE).
+    //
+    // Skipped when:
+    //  - no text query (filter-only requests rely on Query A's joins)
+    //  - service-bound filters present (priceMin/Max/categoryId/typeId require
+    //    a service row to filter on; Query B has none, so skipping preserves
+    //    filter semantics — orgs without services SHOULD NOT pass a price filter)
+    const skipQueryB =
+      !query.q ||
+      query.priceMin != null ||
+      query.priceMax != null ||
+      query.categoryId != null ||
+      query.typeId != null;
+
+    if (!skipQueryB && query.q) {
+      const variantsB = generateSearchVariants(query.q);
+      const conditionsB: string[] = ['o."isActive" = true'];
+      const paramsB: any[] = [];
+      let pIdxB = 1;
+
+      const likeClausesB: string[] = [];
+      for (const variant of variantsB) {
+        const likeParam = `%${variant}%`;
+        likeClausesB.push(`(
+          o."name" ILIKE $${pIdxB}
+          OR o."category" ILIKE $${pIdxB}
+          OR oa."name" ILIKE $${pIdxB}
+          OR oa."address" ILIKE $${pIdxB}
+          OR oa."city" ILIKE $${pIdxB}
+        )`);
+        paramsB.push(likeParam);
+        pIdxB++;
+      }
+      conditionsB.push(`(${likeClausesB.join(' OR ')})`);
+
+      if (query.rating != null) {
+        conditionsB.push(`o."averageRating" >= $${pIdxB}`);
+        paramsB.push(query.rating);
+        pIdxB++;
+      }
+
+      if (query.orgCategory) {
+        conditionsB.push(`o."category" = $${pIdxB}`);
+        paramsB.push(query.orgCategory);
+        pIdxB++;
+      }
+
+      let distanceExprB = 'NULL::float';
+      let geoConditionB = '';
+      if (hasGeo) {
+        const latParamB = pIdxB;
+        const lonParamB = pIdxB + 1;
+        distanceExprB = `(ST_Distance(
+          oa."location",
+          ST_SetSRID(ST_MakePoint($${lonParamB}, $${latParamB}), 4326)::geography
+        ) / 1000.0)`;
+        paramsB.push(query.lat, query.lon);
+        pIdxB += 2;
+
+        const radiusParamB = pIdxB;
+        geoConditionB = ` AND oa."location" IS NOT NULL AND ST_DWithin(
+          oa."location",
+          ST_SetSRID(ST_MakePoint($${lonParamB}, $${latParamB}), 4326)::geography,
+          $${radiusParamB} * 1000
+        )`;
+        paramsB.push(query.radius);
+        pIdxB++;
+      }
+
+      const whereClauseB = conditionsB.join(' AND ') + geoConditionB;
+
+      // Org-rooted ordering: distance/rating/name only (no service price here).
+      let orderByB: string;
+      switch (query.sort) {
+        case SearchSortBy.NAME:
+          orderByB = 'o."name" ASC NULLS LAST';
+          break;
+        case SearchSortBy.DISTANCE:
+          orderByB = hasGeo
+            ? 'distance ASC NULLS LAST'
+            : 'o."averageRating" DESC';
+          break;
+        case SearchSortBy.RATING:
+          orderByB = 'o."averageRating" DESC';
+          break;
+        default:
+          orderByB = 'o."averageRating" DESC, o."name" ASC';
+      }
+
+      const sqlB = `
+        SELECT
+          o."id" AS "orgId",
+          o."name" AS "orgName",
+          o."slug" AS "orgSlug",
+          o."category" AS "orgCategory",
+          o."description" AS "orgDescription",
+          o."avatar" AS "orgAvatar",
+          COALESCE(o."averageRating", 0) AS "orgRating",
+          COALESCE(o."reviewCount", 0) AS "orgReviewCount",
+          oa."id" AS "branchId",
+          oa."name" AS "branchName",
+          oa."address" AS "branchAddress",
+          oa."city" AS "branchCity",
+          oa."lat" AS "branchLat",
+          oa."lon" AS "branchLon",
+          oa."workTime" AS "branchWorkTime",
+          ${distanceExprB} AS distance
+        FROM organizations o
+        LEFT JOIN LATERAL (
+          SELECT oa2.*
+          FROM organization_addresses oa2
+          WHERE oa2."organizationId" = o."id"
+          ORDER BY oa2."id"
+          LIMIT 1
+        ) oa ON true
+        WHERE ${whereClauseB}
+        ORDER BY ${orderByB}
+        LIMIT $${pIdxB} OFFSET 0
+      `;
+      paramsB.push(limit * 5);
+
+      const rowsB = await this.prisma.$queryRawUnsafe<any[]>(sqlB, ...paramsB);
+
+      // Merge: only insert org-rooted rows that don't already exist in groupMap
+      // (guards against duplicating an org that already had matching services).
+      for (const r of rowsB) {
+        const key = `${r.orgId}::${r.branchId ?? 'no-branch'}`;
+        if (groupMap.has(key)) continue;
+
+        groupMap.set(key, {
+          organization: {
+            id: r.orgId,
+            name: r.orgName ?? null,
+            slug: r.orgSlug ?? null,
+            category: r.orgCategory ?? null,
+            description: r.orgDescription ?? null,
+            avatar: r.orgAvatar ?? null,
+            averageRating: Number(r.orgRating) || 0,
+            reviewCount: Number(r.orgReviewCount) || 0,
+          },
+          branch: r.branchId
+            ? {
+                id: r.branchId,
+                name: r.branchName,
+                address: r.branchAddress,
+                city: r.branchCity,
+                lat: r.branchLat,
+                lon: r.branchLon,
+                distance:
+                  r.distance != null
+                    ? Math.round(r.distance * 100) / 100
+                    : null,
+                workTime: r.branchWorkTime,
+              }
+            : null,
+          services: [],
+        });
+      }
+    }
+
     const allGroups = [...groupMap.values()];
     const total = allGroups.length;
     const paginated = allGroups.slice(offset, offset + limit);
