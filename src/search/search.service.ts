@@ -445,39 +445,46 @@ export class SearchService {
     // Bug 1 (q=груминг returns 0 because "Грумінг-салон PetStyle" has org+addr
     // but no services; Query A's `FROM services s` strips it before WHERE).
     //
-    // Skipped when:
-    //  - no text query (filter-only requests rely on Query A's joins)
-    //  - service-bound filters present (priceMin/Max/categoryId/typeId require
-    //    a service row to filter on; Query B has none, so skipping preserves
-    //    filter semantics — orgs without services SHOULD NOT pass a price filter)
+    // quick-260511-h2n: also runs in BROWSE mode (no q) so the catalog map
+    // shows orgs without services as pins — Query A's `FROM services s` was
+    // hiding them. Filter conditions (rating, orgCategory, geo) still apply.
+    //
+    // Skipped only when service-bound filters are present (priceMin/Max/
+    // categoryId/typeId require a service row to filter on; Query B has none,
+    // so skipping preserves filter semantics — orgs without services SHOULD
+    // NOT pass a price filter).
     const skipQueryB =
-      !query.q ||
       query.priceMin != null ||
       query.priceMax != null ||
       query.categoryId != null ||
       query.typeId != null;
 
-    if (!skipQueryB && query.q) {
-      const variantsB = generateSearchVariants(query.q);
+    if (!skipQueryB) {
       const conditionsB: string[] = ['o."isActive" = true'];
       const paramsB: any[] = [];
       let pIdxB = 1;
 
-      const likeClausesB: string[] = [];
-      for (const variant of variantsB) {
-        const likeParam = `%${variant}%`;
-        const trgmParam = variant;
-        likeClausesB.push(`(
-          o."name" ILIKE $${pIdxB} OR o."name" % $${pIdxB + 1}
-          OR o."category" ILIKE $${pIdxB} OR o."category" % $${pIdxB + 1}
-          OR oa."name" ILIKE $${pIdxB} OR oa."name" % $${pIdxB + 1}
-          OR oa."address" ILIKE $${pIdxB} OR oa."address" % $${pIdxB + 1}
-          OR oa."city" ILIKE $${pIdxB} OR oa."city" % $${pIdxB + 1}
-        )`);
-        paramsB.push(likeParam, trgmParam);
-        pIdxB += 2;
+      // Text-match clauses ONLY when q present. Without q, Query B becomes a
+      // pure filter-by-geo/rating/orgCategory browse for orgs (with or
+      // without services) in the requested radius.
+      if (query.q) {
+        const variantsB = generateSearchVariants(query.q);
+        const likeClausesB: string[] = [];
+        for (const variant of variantsB) {
+          const likeParam = `%${variant}%`;
+          const trgmParam = variant;
+          likeClausesB.push(`(
+            o."name" ILIKE $${pIdxB} OR o."name" % $${pIdxB + 1}
+            OR o."category" ILIKE $${pIdxB} OR o."category" % $${pIdxB + 1}
+            OR oa."name" ILIKE $${pIdxB} OR oa."name" % $${pIdxB + 1}
+            OR oa."address" ILIKE $${pIdxB} OR oa."address" % $${pIdxB + 1}
+            OR oa."city" ILIKE $${pIdxB} OR oa."city" % $${pIdxB + 1}
+          )`);
+          paramsB.push(likeParam, trgmParam);
+          pIdxB += 2;
+        }
+        conditionsB.push(`(${likeClausesB.join(' OR ')})`);
       }
-      conditionsB.push(`(${likeClausesB.join(' OR ')})`);
 
       if (query.rating != null) {
         conditionsB.push(`o."averageRating" >= $${pIdxB}`);
