@@ -33,32 +33,13 @@ const CATEGORY_SYNONYMS = new Set<string>(
   ),
 );
 
-// Naive haversine — km. Sufficient for /suggest distance display (PostGIS not
-// required here per Phase 7 plan; main /search endpoint still uses PostGIS).
-function haversineKm(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
-  const R = 6371; // km
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLon = ((lon2 - lon1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLon / 2) ** 2;
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Math.round(R * c * 100) / 100;
-}
+// haversineKm helper removed by quick-260511-h2n — businesses no longer
+// computed with a separate distance calc; branch.distance comes from the
+// main search() Haversine SQL expression.
 
 // Highlight first variant substring in text, wrap with <em>...</em>.
 // Returns single-element array (matches content-search highlight shape).
-function wrapHighlight(
-  text: string,
-  variants: string[],
-): string[] | undefined {
+function wrapHighlight(text: string, variants: string[]): string[] | undefined {
   if (!text) return undefined;
   const lower = text.toLowerCase();
   for (const v of variants) {
@@ -673,11 +654,25 @@ export class SearchService {
     const lang = query.lang ?? 'ru';
     const variants = generateSearchVariants(q);
 
-    const [categories, businesses, services] = await Promise.all([
-      this.findCategoriesFromSeed(variants, lang),
-      this.findBusinessesPg(variants, query.lat, query.lon),
+    // quick-260511-h2n: businesses[] now mirrors main /search BranchResult
+    // shape (organization+branch+services). Reuse the search() method so
+    // suggest and /search return the SAME data — only difference is the
+    // wrapping ({sections.businesses} vs {data}) and the limit (5 vs 20).
+    // Drop the legacy flat-shape findBusinessesPg helper.
+    // categories is sync — pulled out of Promise.all to keep eslint happy.
+    // lang dropped from findCategoriesFromSeed signature (was unused; eslint
+    // no-unused-vars). Kept on the suggest() input + intent classifier.
+    void lang;
+    const categories = this.findCategoriesFromSeed(variants);
+    const [businessesSearch, services] = await Promise.all([
+      this.searchBusinessesViaSearch(q, query.lat, query.lon),
       this.findServicesPg(variants),
     ]);
+
+    const businesses = this.mapBranchResultsToSuggestBusinesses(
+      businessesSearch,
+      variants,
+    );
 
     const serviceSynonyms = await this.getServiceSynonyms();
     const intent = classifyIntent({
@@ -695,12 +690,62 @@ export class SearchService {
     };
   }
 
+  // Reuse the main search() method to fetch businesses for suggest. Same
+  // SQL, same joins, same pg_trgm typo tolerance — only different paging
+  // (limit=5 for autocomplete UX). radius default 25km matches main search
+  // behavior. Returns raw BranchResult[]; mapping to SuggestBusinessDto
+  // happens in mapBranchResultsToSuggestBusinesses.
+  private async searchBusinessesViaSearch(
+    q: string,
+    lat?: number,
+    lon?: number,
+  ): Promise<BranchResult[]> {
+    const searchQuery: SearchQueryDto = {
+      q,
+      lat,
+      lon,
+      radius: 25,
+      sort: SearchSortBy.RELEVANCE,
+      page: 1,
+      limit: 5,
+    };
+    const resp = await this.search(searchQuery);
+    return resp.data;
+  }
+
+  // Convert main /search BranchResult[] into SuggestBusinessDto[] — drops
+  // any rows without a branch (suggest must never surface address-less orgs;
+  // FE has no branch.id to navigate to), copies branch.distance to top-level
+  // distanceKm + computes isOpenNow from branch.workTime + adds highlight.
+  private mapBranchResultsToSuggestBusinesses(
+    rows: BranchResult[],
+    variants: string[],
+  ): SuggestBusinessDto[] {
+    return rows
+      .filter(r => r.branch !== null)
+      .map(r => {
+        const branch = r.branch!;
+        const dto: SuggestBusinessDto = {
+          type: 'business',
+          organization: r.organization,
+          branch,
+          services: r.services,
+        };
+        if (branch.distance != null) {
+          dto.distanceKm = branch.distance;
+        }
+        if (branch.workTime) {
+          dto.isOpenNow = isOpenNow(branch.workTime as WorkTime);
+        }
+        const hl = wrapHighlight(r.organization.name ?? '', variants);
+        if (hl) dto.highlight = { name: hl };
+        return dto;
+      });
+  }
+
   // -------- /suggest helpers --------
 
-  private findCategoriesFromSeed(
-    variants: string[],
-    _lang: 'ru' | 'uk' | 'en',
-  ): SuggestCategoryDto[] {
+  private findCategoriesFromSeed(variants: string[]): SuggestCategoryDto[] {
     const lowerVariants = variants.map(v => v.toLowerCase());
     type Scored = { cat: SeededCategory; score: number };
     const scored: Scored[] = [];
@@ -737,83 +782,9 @@ export class SearchService {
     }));
   }
 
-  private async findBusinessesPg(
-    variants: string[],
-    lat?: number,
-    lon?: number,
-  ): Promise<SuggestBusinessDto[]> {
-    if (variants.length === 0) return [];
-
-    const params: any[] = [];
-    let pIdx = 1;
-    const likeClauses: string[] = [];
-    for (const v of variants) {
-      params.push(`%${v}%`, v);
-      likeClauses.push(
-        `(o."name" ILIKE $${pIdx} OR o."name" % $${pIdx + 1} OR o."category" ILIKE $${pIdx} OR o."category" % $${pIdx + 1})`,
-      );
-      pIdx += 2;
-    }
-
-    const sql = `
-      SELECT
-        o."id",
-        o."name",
-        o."category",
-        COALESCE(o."averageRating", 0) AS rating,
-        o."avatar" AS banner,
-        oa."lat" AS "addrLat",
-        oa."lon" AS "addrLon",
-        oa."workTime" AS "workTime"
-      FROM organizations o
-      LEFT JOIN LATERAL (
-        SELECT * FROM organization_addresses
-        WHERE "organizationId" = o."id"
-        ORDER BY "id"
-        LIMIT 1
-      ) oa ON true
-      WHERE o."isActive" = true
-        AND (${likeClauses.join(' OR ')})
-      ORDER BY o."averageRating" DESC NULLS LAST, o."name" ASC
-      LIMIT 5
-    `;
-
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
-
-    return rows.map(r => {
-      const dto: SuggestBusinessDto = {
-        type: 'business',
-        id: r.id,
-        name: r.name,
-      };
-      if (r.category) dto.category = r.category;
-      if (r.rating != null) dto.rating = Number(r.rating);
-      if (r.banner) dto.banner = r.banner;
-
-      if (
-        lat != null &&
-        lon != null &&
-        r.addrLat != null &&
-        r.addrLon != null
-      ) {
-        dto.distanceKm = haversineKm(
-          lat,
-          lon,
-          Number(r.addrLat),
-          Number(r.addrLon),
-        );
-      }
-
-      if (r.workTime) {
-        dto.isOpenNow = isOpenNow(r.workTime as WorkTime);
-      }
-
-      const hl = wrapHighlight(r.name ?? '', variants);
-      if (hl) dto.highlight = { name: hl };
-
-      return dto;
-    });
-  }
+  // findBusinessesPg removed by quick-260511-h2n — businesses now come from
+  // search() via searchBusinessesViaSearch + mapBranchResultsToSuggestBusinesses
+  // (see suggest() above).
 
   private async findServicesPg(
     variants: string[],
