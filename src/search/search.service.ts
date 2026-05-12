@@ -3,6 +3,7 @@ import { PrismaService } from '@/prisma/prisma.service';
 import {
   SearchQueryDto,
   SearchSortBy,
+  GroupBy,
   SuggestQueryDto,
   SuggestResponseDto,
   SuggestCategoryDto,
@@ -182,6 +183,12 @@ export class SearchService {
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
     const hasGeo = query.lat != null && query.lon != null;
+    const isGroupByOrg = query.groupBy === GroupBy.ORGANIZATION;
+    // In groupBy mode the per-query SQL LIMIT must cover enough rows to dedupe
+    // down to `limit` unique orgs. A multi-branch org consumes N rows out of
+    // the cap to yield 1 unique org. Bump the cap to max(limit * 50, 5000) for
+    // groupBy mode. Default path keeps the existing limit * 5 cap (byte-identical).
+    const sqlRowCap = isGroupByOrg ? Math.max(limit * 50, 5000) : limit * 5;
 
     const conditions: string[] = ['s."isActive" = true'];
     const params: any[] = [];
@@ -360,7 +367,7 @@ export class SearchService {
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
-    params.push(limit * 5, 0); // берём с запасом для группировки
+    params.push(sqlRowCap, 0); // берём с запасом для группировки (raised in groupBy=organization mode)
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
 
@@ -574,7 +581,7 @@ export class SearchService {
         ORDER BY ${orderByB}
         LIMIT $${pIdxB} OFFSET 0
       `;
-      paramsB.push(limit * 5);
+      paramsB.push(sqlRowCap);
 
       const rowsB = await this.prisma.$queryRawUnsafe<any[]>(sqlB, ...paramsB);
 
@@ -617,9 +624,114 @@ export class SearchService {
       }
     }
 
-    const allGroups = [...groupMap.values()];
-    const total = allGroups.length;
-    const paginated = allGroups.slice(offset, offset + limit);
+    // Default path (groupBy absent / not 'organization') — byte-identical to
+    // pre-quick-260512-nvd behavior. One row per (org, branch) tuple.
+    if (!isGroupByOrg) {
+      const allGroups = [...groupMap.values()];
+      const total = allGroups.length;
+      const paginated = allGroups.slice(offset, offset + limit);
+
+      return {
+        data: paginated,
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        hasMore: page * limit < total,
+      };
+    }
+
+    // groupBy=organization path — two-pass dedupe with deterministic
+    // representative-branch selection.
+    //
+    // Pass 1: scan groupMap in INSERTION ORDER (which reflects SQL ORDER BY
+    // for Query A, then Query B). Track:
+    //   - orgRepresentative: orgId → BranchResult (current best candidate)
+    //   - orgFirstSeenIndex: orgId → integer (position of first row for that
+    //     org in groupMap — used as stable output sort key, preserves
+    //     existing sort semantics).
+    //
+    // Best-representative rule:
+    //   - If candidate has a branch and current best has no branch → replace.
+    //   - If both have branches and hasGeo:
+    //       prefer smaller branch.distance (null treated as +Infinity, so
+    //       any non-null distance beats null). Ties broken by lex(branch.id)
+    //       ASC (deterministic & stable across paginated requests).
+    //   - If both have branches and NOT hasGeo:
+    //       prefer lex(branch.id) ASC.
+    //   - If candidate has no branch and current best has a branch → keep best.
+    //   - Branchless orgs only emit if NO branched candidate exists for that org.
+    const orgRepresentative = new Map<string, BranchResult>();
+    const orgFirstSeenIndex = new Map<string, number>();
+    let idx = 0;
+    for (const candidate of groupMap.values()) {
+      const orgId = candidate.organization.id;
+      if (!orgFirstSeenIndex.has(orgId)) {
+        orgFirstSeenIndex.set(orgId, idx);
+      }
+      idx++;
+
+      const current = orgRepresentative.get(orgId);
+      if (!current) {
+        orgRepresentative.set(orgId, candidate);
+        continue;
+      }
+
+      // Both rows for the same org — pick the better representative.
+      const curHasBranch = current.branch !== null;
+      const candHasBranch = candidate.branch !== null;
+
+      if (candHasBranch && !curHasBranch) {
+        orgRepresentative.set(orgId, candidate);
+        continue;
+      }
+      if (!candHasBranch && curHasBranch) {
+        continue; // keep current
+      }
+      if (!candHasBranch && !curHasBranch) {
+        continue; // both branchless — first one wins (stable)
+      }
+
+      // Both have branches.
+      const curBranch = current.branch!;
+      const candBranch = candidate.branch!;
+
+      if (hasGeo) {
+        const curDist = curBranch.distance ?? Number.POSITIVE_INFINITY;
+        const candDist = candBranch.distance ?? Number.POSITIVE_INFINITY;
+        if (candDist < curDist) {
+          orgRepresentative.set(orgId, candidate);
+          continue;
+        }
+        if (candDist > curDist) {
+          continue;
+        }
+        // Tie on distance — break by lex(branch.id) ASC.
+        if (candBranch.id < curBranch.id) {
+          orgRepresentative.set(orgId, candidate);
+        }
+        continue;
+      }
+
+      // No geo — pure lex(branch.id) ASC.
+      if (candBranch.id < curBranch.id) {
+        orgRepresentative.set(orgId, candidate);
+      }
+    }
+
+    // Pass 2: emit representatives sorted by orgFirstSeenIndex (preserves
+    // the SQL ORDER BY semantics — the org's first appearance dictates its
+    // position in the output, regardless of which branch ended up as rep).
+    const uniqueOrgs = [...orgRepresentative.entries()]
+      .sort(
+        (a, b) =>
+          (orgFirstSeenIndex.get(a[0]) ?? 0) -
+          (orgFirstSeenIndex.get(b[0]) ?? 0),
+      )
+      .map(([, rep]) => rep);
+
+    const total = uniqueOrgs.length;
+    const paginated = uniqueOrgs.slice(offset, offset + limit);
 
     return {
       data: paginated,
