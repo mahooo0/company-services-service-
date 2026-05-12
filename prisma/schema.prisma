@@ -21,6 +21,7 @@ model Organization {
   category      String?
   description   String?
   avatar        String?
+  phones        Json?
   averageRating Float    @default(0)
   reviewCount   Int      @default(0)
   isActive      Boolean  @default(true)
@@ -35,17 +36,18 @@ model Organization {
 
 // Денормализованные точки (филиалы) организации (синхронизация через RabbitMQ)
 model OrganizationAddress {
-  id             String  @id
+  id             String                                 @id
   organizationId String
   name           String?
   city           String?
   state          String?
   country        String?
   address        String?
-  lat            Float   @db.DoublePrecision
-  lon            Float   @db.DoublePrecision
+  lat            Float                                  @db.DoublePrecision
+  lon            Float                                  @db.DoublePrecision
   location       Unsupported("geography(Point, 4326)")?
   workTime       Json?
+  phone          Json?
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -107,7 +109,7 @@ model Service {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  type               ServiceType          @relation(fields: [typeId], references: [id])
+  type               ServiceType         @relation(fields: [typeId], references: [id])
   variations         ServiceVariation[]
   specialistServices SpecialistService[]
   locationServices   LocationService[]
