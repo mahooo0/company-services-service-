@@ -13,6 +13,7 @@ interface OrganizationEvent {
   averageRating?: number;
   reviewCount?: number;
   isActive?: boolean;
+  phones?: any;
 }
 
 interface AddressEvent {
@@ -26,6 +27,7 @@ interface AddressEvent {
   lat: number;
   lon: number;
   workTime?: any;
+  phone?: any;
 }
 
 @Injectable()
@@ -154,6 +156,7 @@ export class OrganizationEventConsumer implements OnModuleInit {
         category: data.category,
         description: data.description,
         avatar: data.avatar,
+        phones: data.phones ?? undefined,
         averageRating: data.averageRating ?? 0,
         reviewCount: data.reviewCount ?? 0,
         isActive: data.isActive ?? true,
@@ -164,6 +167,7 @@ export class OrganizationEventConsumer implements OnModuleInit {
         category: data.category,
         description: data.description,
         avatar: data.avatar,
+        phones: data.phones ?? undefined,
         averageRating: data.averageRating ?? undefined,
         reviewCount: data.reviewCount ?? undefined,
         isActive: data.isActive ?? undefined,
@@ -189,6 +193,7 @@ export class OrganizationEventConsumer implements OnModuleInit {
         lat: data.lat,
         lon: data.lon,
         workTime: data.workTime ?? undefined,
+        phone: data.phone ?? undefined,
       },
       update: {
         name: data.name,
@@ -199,6 +204,7 @@ export class OrganizationEventConsumer implements OnModuleInit {
         lat: data.lat,
         lon: data.lon,
         workTime: data.workTime ?? undefined,
+        phone: data.phone ?? undefined,
       },
     });
   }
