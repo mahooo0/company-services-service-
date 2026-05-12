@@ -21,6 +21,10 @@ export enum SearchSortBy {
   PRICE_DESC = 'price_desc',
 }
 
+export enum GroupBy {
+  ORGANIZATION = 'organization',
+}
+
 export class SearchQueryDto {
   @ApiPropertyOptional({ description: 'Поисковый запрос', example: 'стрижка' })
   @IsString()
@@ -107,6 +111,19 @@ export class SearchQueryDto {
   @IsEnum(SearchSortBy)
   @IsOptional()
   sort?: SearchSortBy = SearchSortBy.RELEVANCE;
+
+  @ApiPropertyOptional({
+    description:
+      'Группировка результатов. Если "organization" — возвращает по одной строке на уникальную организацию ' +
+      'с представительной точкой (ближайшая при lat+lon, иначе с наименьшим branch.id). ' +
+      'total/totalPages/hasMore считают уникальные организации. ' +
+      'По умолчанию (отсутствует) — одна строка на (org, branch), как сейчас. ' +
+      'Совместимо с map view; grid view должен передавать groupBy=organization.',
+    enum: GroupBy,
+  })
+  @IsEnum(GroupBy)
+  @IsOptional()
+  groupBy?: GroupBy;
 
   @ApiPropertyOptional({ description: 'Номер страницы', default: 1 })
   @Type(() => Number)

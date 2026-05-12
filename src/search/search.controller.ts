@@ -1,11 +1,12 @@
 import { Controller, Get, Query } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { SearchService } from './search.service';
 import {
-  SearchQueryDto,
-  SuggestQueryDto,
-  SuggestResponseDto,
-} from './dto';
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { SearchService } from './search.service';
+import { SearchQueryDto, SuggestQueryDto, SuggestResponseDto } from './dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -20,6 +21,14 @@ export class SearchController {
       'Мультиязычный (укр/рус/eng). Матчит по названию услуги, компании, категории, типу. ' +
       'Поддержка гео-фильтра, рейтинга, цены, сортировки.',
   })
+  @ApiQuery({
+    name: 'groupBy',
+    required: false,
+    enum: ['organization'],
+    description:
+      'Optional grouping. "organization" returns one row per unique organization. ' +
+      'Absent (default) returns one row per (org, branch).',
+  })
   search(@Query() query: SearchQueryDto) {
     return this.searchService.search(query);
   }
@@ -33,7 +42,10 @@ export class SearchController {
       'q ≥ 2 chars (DTO @MinLength). lat/lon опциональны для distanceKm.',
   })
   @ApiResponse({ status: 200, type: SuggestResponseDto })
-  @ApiResponse({ status: 400, description: 'Validation error (e.g. q < 2 chars)' })
+  @ApiResponse({
+    status: 400,
+    description: 'Validation error (e.g. q < 2 chars)',
+  })
   suggest(@Query() query: SuggestQueryDto): Promise<SuggestResponseDto> {
     return this.searchService.suggest(query);
   }
