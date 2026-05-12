@@ -132,6 +132,7 @@ interface BranchResult {
     avatar: string | null;
     averageRating: number;
     reviewCount: number;
+    phones: any;
   };
   branch: {
     id: string;
@@ -142,6 +143,7 @@ interface BranchResult {
     lon: number;
     distance: number | null;
     workTime: any;
+    phone: any;
   } | null;
   services: {
     id: string;
@@ -327,6 +329,7 @@ export class SearchService {
         o."category" AS "orgCategory",
         o."description" AS "orgDescription",
         o."avatar" AS "orgAvatar",
+        o."phones" AS "orgPhones",
         COALESCE(o."averageRating", 0) AS "orgRating",
         COALESCE(o."reviewCount", 0) AS "orgReviewCount",
         oa."id" AS "branchId",
@@ -336,6 +339,7 @@ export class SearchService {
         oa."lat" AS "branchLat",
         oa."lon" AS "branchLon",
         oa."workTime" AS "branchWorkTime",
+        oa."phone" AS "branchPhone",
         ${distanceExpr} AS distance,
         sp."minPrice",
         COUNT(*) OVER() AS "totalCount"
@@ -349,7 +353,6 @@ export class SearchService {
         FROM organization_addresses oa2
         WHERE oa2."id" = ls."locationId"
            OR (ls."locationId" IS NULL AND oa2."organizationId" = s."organizationId")
-        LIMIT 1
       ) oa ON true
       LEFT JOIN service_min_prices sp ON sp."serviceId" = s."id"
       WHERE ${whereClause}
@@ -381,6 +384,7 @@ export class SearchService {
             avatar: r.orgAvatar ?? null,
             averageRating: Number(r.orgRating) || 0,
             reviewCount: Number(r.orgReviewCount) || 0,
+            phones: r.orgPhones ?? null,
           },
           branch: r.branchId
             ? {
@@ -395,6 +399,7 @@ export class SearchService {
                     ? Math.round(r.distance * 100) / 100
                     : null,
                 workTime: r.branchWorkTime,
+                phone: r.branchPhone ?? null,
               }
             : null,
           services: [],
@@ -547,6 +552,7 @@ export class SearchService {
           o."category" AS "orgCategory",
           o."description" AS "orgDescription",
           o."avatar" AS "orgAvatar",
+          o."phones" AS "orgPhones",
           COALESCE(o."averageRating", 0) AS "orgRating",
           COALESCE(o."reviewCount", 0) AS "orgReviewCount",
           oa."id" AS "branchId",
@@ -556,14 +562,13 @@ export class SearchService {
           oa."lat" AS "branchLat",
           oa."lon" AS "branchLon",
           oa."workTime" AS "branchWorkTime",
+          oa."phone" AS "branchPhone",
           ${distanceExprB} AS distance
         FROM organizations o
         LEFT JOIN LATERAL (
           SELECT oa2.*
           FROM organization_addresses oa2
           WHERE oa2."organizationId" = o."id"
-          ORDER BY oa2."id"
-          LIMIT 1
         ) oa ON true
         WHERE ${whereClauseB}
         ORDER BY ${orderByB}
@@ -589,6 +594,7 @@ export class SearchService {
             avatar: r.orgAvatar ?? null,
             averageRating: Number(r.orgRating) || 0,
             reviewCount: Number(r.orgReviewCount) || 0,
+            phones: r.orgPhones ?? null,
           },
           branch: r.branchId
             ? {
@@ -603,6 +609,7 @@ export class SearchService {
                     ? Math.round(r.distance * 100) / 100
                     : null,
                 workTime: r.branchWorkTime,
+                phone: r.branchPhone ?? null,
               }
             : null,
           services: [],

@@ -28,6 +28,13 @@ export class SuggestOrganizationDto {
 
   @ApiProperty()
   reviewCount!: number;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Company-level phones JSON (shape: array of strings or array/object of phone records). Pass-through from organization-service-main.',
+  })
+  phones!: unknown;
 }
 
 export class SuggestBranchDto {
@@ -57,6 +64,13 @@ export class SuggestBranchDto {
 
   @ApiProperty({ nullable: true })
   workTime!: unknown;
+
+  @ApiProperty({
+    nullable: true,
+    description:
+      'Branch-level phone JSON (shape: array of strings or array/object of phone records). Pass-through from organization-service-main address.',
+  })
+  phone!: unknown;
 }
 
 export class SuggestServiceVariationDto {
