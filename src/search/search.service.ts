@@ -294,6 +294,50 @@ export class SearchService {
 
     const whereClause = conditions.join(' AND ') + geoCondition;
 
+    // P3 fix: real total count. The main data query is LIMIT-capped at
+    // sqlRowCap (limit * 5) for grouping headroom, so groupMap.size would
+    // misreport the actual number of matches. Run a separate COUNT over the
+    // same FROM + WHERE with no LIMIT, counting either (org, branch) pairs
+    // for the default path or distinct orgs for groupBy=organization.
+    //
+    // Note: this is Option A — counts Query A matches only. Orgs found
+    // exclusively via Query B (org/branch-name match without service hit)
+    // are not in this total, so groupBy mode may slightly under-count when
+    // Query B adds extras. Acceptable trade-off: 2% miss beats today's
+    // 5x lie (see P3 brief).
+    const countSelectKey = isGroupByOrg
+      ? 's."organizationId"'
+      : 's."organizationId", oa."id"';
+    const countSql = `
+      WITH service_min_prices AS (
+        SELECT "serviceId", MIN("price")::float AS "minPrice"
+        FROM service_variations
+        WHERE "isActive" = true
+        GROUP BY "serviceId"
+      )
+      SELECT COUNT(*) AS "total" FROM (
+        SELECT DISTINCT ${countSelectKey}
+        FROM services s
+        JOIN service_types st ON s."typeId" = st."id"
+        JOIN service_categories sc ON st."categoryId" = sc."id"
+        LEFT JOIN organizations o ON s."organizationId" = o."id"
+        LEFT JOIN location_services ls ON ls."serviceId" = s."id"
+        LEFT JOIN LATERAL (
+          SELECT oa2.*
+          FROM organization_addresses oa2
+          WHERE oa2."id" = ls."locationId"
+             OR (ls."locationId" IS NULL AND oa2."organizationId" = s."organizationId")
+        ) oa ON true
+        LEFT JOIN service_min_prices sp ON sp."serviceId" = s."id"
+        WHERE ${whereClause}
+      ) merged
+    `;
+    const countRows = await this.prisma.$queryRawUnsafe<{ total: bigint }[]>(
+      countSql,
+      ...params,
+    );
+    const realTotal = Number(countRows[0]?.total ?? 0);
+
     // Сортировка
     let orderBy: string;
     switch (query.sort) {
@@ -637,7 +681,9 @@ export class SearchService {
     // pre-quick-260512-nvd behavior. One row per (org, branch) tuple.
     if (!isGroupByOrg) {
       const allGroups = [...groupMap.values()];
-      const total = allGroups.length;
+      // P3 fix: total comes from the dedicated COUNT query (computed before
+      // the LIMIT-capped main fetch), not from the over-fetched groupMap.
+      const total = realTotal;
       const paginated = allGroups.slice(offset, offset + limit);
 
       return {
@@ -739,7 +785,9 @@ export class SearchService {
       )
       .map(([, rep]) => rep);
 
-    const total = uniqueOrgs.length;
+    // P3 fix: total comes from the dedicated COUNT query (counts distinct
+    // orgs in groupBy mode), not from the LIMIT-capped uniqueOrgs.length.
+    const total = realTotal;
     const paginated = uniqueOrgs.slice(offset, offset + limit);
 
     return {
