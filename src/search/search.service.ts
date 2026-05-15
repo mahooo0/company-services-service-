@@ -283,7 +283,8 @@ export class SearchService {
       paramIndex += 2;
 
       geoCondition = ` AND oa."lat" IS NOT NULL AND ${distanceExpr} <= $${paramIndex}`;
-      params.push(query.radius);
+      // radius приходит в метрах из DTO (default 25000); Haversine считает в км, поэтому /1000.
+      params.push((query.radius ?? 25000) / 1000);
       paramIndex++;
     }
 
@@ -527,7 +528,8 @@ export class SearchService {
         pIdxB += 2;
 
         geoConditionB = ` AND oa."lat" IS NOT NULL AND ${distanceExprB} <= $${pIdxB}`;
-        paramsB.push(query.radius);
+        // radius приходит в метрах из DTO (default 25000); Haversine считает в км, поэтому /1000.
+        paramsB.push((query.radius ?? 25000) / 1000);
         pIdxB++;
       }
 
@@ -818,8 +820,8 @@ export class SearchService {
 
   // Reuse the main search() method to fetch businesses for suggest. Same
   // SQL, same joins, same pg_trgm typo tolerance — only different paging
-  // (limit=5 for autocomplete UX). radius default 25km matches main search
-  // behavior. Returns raw BranchResult[]; mapping to SuggestBusinessDto
+  // (limit=5 for autocomplete UX). radius default 25000m (25 km) matches main
+  // search behavior. Returns raw BranchResult[]; mapping to SuggestBusinessDto
   // happens in mapBranchResultsToSuggestBusinesses.
   private async searchBusinessesViaSearch(
     q: string,
@@ -830,7 +832,7 @@ export class SearchService {
       q,
       lat,
       lon,
-      radius: 25,
+      radius: 25000,
       sort: SearchSortBy.RELEVANCE,
       page: 1,
       limit: 5,

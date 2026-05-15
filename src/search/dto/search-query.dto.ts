@@ -10,7 +10,7 @@ import {
   Max,
   MinLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 export enum SearchSortBy {
   RELEVANCE = 'relevance',
@@ -48,16 +48,24 @@ export class SearchQueryDto {
   lon?: number;
 
   @ApiPropertyOptional({
-    description: 'Радиус поиска в км (1-100)',
-    example: 10,
-    default: 25,
+    description: 'Радиус поиска в метрах (100–100000)',
+    example: 5000,
+    default: 25000,
   })
   @Type(() => Number)
-  @IsNumber()
-  @Min(1)
-  @Max(100)
+  // Autodetect shim: старый фронт шлёт радиус в км как дробное число < 100
+  // (0.5, 1, 2, 5). Конвертим в метры до валидации, чтобы оба контракта жили
+  // параллельно. TODO: убрать @Transform после фронт-cutover.
+  @Transform(({ value }) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return value;
+    return n > 0 && n < 100 ? Math.round(n * 1000) : n;
+  })
+  @IsInt()
+  @Min(100)
+  @Max(100000)
   @IsOptional()
-  radius?: number = 25;
+  radius?: number = 25000;
 
   @ApiPropertyOptional({
     description: 'Минимальный рейтинг (0-5)',
