@@ -15,34 +15,25 @@ describe('SearchQueryDto - radius', () => {
     );
   });
 
-  describe('autodetect shim — converts legacy km values (< 100) to meters', () => {
-    it.each([
-      [0.5, 500],
-      [1, 1000],
-      [2, 2000],
-      [5, 5000],
-      [10, 10000],
-      [99, 99000],
-    ])(
-      'radius=%s (legacy km) is transformed to %i meters and passes validation',
-      async (input, expected) => {
-        const dto = plainToInstance(SearchQueryDto, { radius: input });
-        const errors = await validate(dto);
-        expect(errors).toHaveLength(0);
-        expect(dto.radius).toBe(expected);
-      },
-    );
-  });
-
   describe('rejects out-of-range values', () => {
-    it.each([[0], [-1], [-50], [100001], [200000]])(
-      'radius=%i fails validation',
-      async radius => {
-        const dto = plainToInstance(SearchQueryDto, { radius });
-        const errors = await validate(dto);
-        expect(errors.length).toBeGreaterThan(0);
-      },
-    );
+    it.each([
+      [0],
+      [-1],
+      [-50],
+      // Legacy km values (used by the old frontend contract) — now correctly
+      // rejected since the autodetect shim has been removed.
+      [0.5],
+      [1],
+      [2],
+      [5],
+      [99],
+      [100001],
+      [200000],
+    ])('radius=%s fails validation', async radius => {
+      const dto = plainToInstance(SearchQueryDto, { radius });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+    });
   });
 
   it('default value is 25000 (25 km in meters)', () => {

@@ -10,7 +10,7 @@ import {
   Max,
   MinLength,
 } from 'class-validator';
-import { Type, Transform } from 'class-transformer';
+import { Type } from 'class-transformer';
 
 export enum SearchSortBy {
   RELEVANCE = 'relevance',
@@ -53,14 +53,6 @@ export class SearchQueryDto {
     default: 25000,
   })
   @Type(() => Number)
-  // Autodetect shim: старый фронт шлёт радиус в км как дробное число < 100
-  // (0.5, 1, 2, 5). Конвертим в метры до валидации, чтобы оба контракта жили
-  // параллельно. TODO: убрать @Transform после фронт-cutover.
-  @Transform(({ value }) => {
-    const n = Number(value);
-    if (!Number.isFinite(n)) return value;
-    return n > 0 && n < 100 ? Math.round(n * 1000) : n;
-  })
   @IsInt()
   @Min(100)
   @Max(100000)
