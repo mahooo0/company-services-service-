@@ -217,9 +217,13 @@ export class SearchService {
       conditions.push(`(${likeClauses.join(' OR ')})`);
     }
 
-    // Фильтр по рейтингу
+    // Фильтр по рейтингу. CASE WHEN — orgs with reviewCount=0 default to 5★,
+    // so they pass `rating >= N` predicates instead of being silently excluded.
+    // Mirrors the SELECT expression in the same query so filter and display agree.
     if (query.rating != null) {
-      conditions.push(`o."averageRating" >= $${paramIndex}`);
+      conditions.push(
+        `(CASE WHEN o."reviewCount" = 0 THEN 5 ELSE o."averageRating" END) >= $${paramIndex}`,
+      );
       params.push(query.rating);
       paramIndex++;
     }
@@ -338,7 +342,7 @@ export class SearchService {
         o."description" AS "orgDescription",
         o."avatar" AS "orgAvatar",
         o."phones" AS "orgPhones",
-        COALESCE(o."averageRating", 0) AS "orgRating",
+        CASE WHEN o."reviewCount" = 0 THEN 5 ELSE o."averageRating" END AS "orgRating",
         COALESCE(o."reviewCount", 0) AS "orgReviewCount",
         oa."id" AS "branchId",
         oa."name" AS "branchName",
@@ -500,7 +504,10 @@ export class SearchService {
       }
 
       if (query.rating != null) {
-        conditionsB.push(`o."averageRating" >= $${pIdxB}`);
+        // Same default-5 CASE expression as Query A's rating predicate.
+        conditionsB.push(
+          `(CASE WHEN o."reviewCount" = 0 THEN 5 ELSE o."averageRating" END) >= $${pIdxB}`,
+        );
         paramsB.push(query.rating);
         pIdxB++;
       }
@@ -562,7 +569,7 @@ export class SearchService {
           o."description" AS "orgDescription",
           o."avatar" AS "orgAvatar",
           o."phones" AS "orgPhones",
-          COALESCE(o."averageRating", 0) AS "orgRating",
+          CASE WHEN o."reviewCount" = 0 THEN 5 ELSE o."averageRating" END AS "orgRating",
           COALESCE(o."reviewCount", 0) AS "orgReviewCount",
           oa."id" AS "branchId",
           oa."name" AS "branchName",
@@ -935,7 +942,7 @@ export class SearchService {
         s."organizationId",
         o."name" AS "organizationName",
         o."category" AS "organizationCategory",
-        COALESCE(o."averageRating", 0) AS "organizationRating"
+        CASE WHEN o."reviewCount" = 0 THEN 5 ELSE o."averageRating" END AS "organizationRating"
       FROM services s
       LEFT JOIN organizations o ON s."organizationId" = o."id"
       WHERE s."isActive" = true
