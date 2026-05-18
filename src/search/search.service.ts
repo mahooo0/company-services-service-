@@ -305,9 +305,103 @@ export class SearchService {
     // are not in this total, so groupBy mode may slightly under-count when
     // Query B adds extras. Acceptable trade-off: 2% miss beats today's
     // 5x lie (see P3 brief).
+    // P3+ fix: when the data path runs Query B (org-rooted) as a fallback for
+    // service-less orgs, the count must also union Query B's universe, else
+    // total dramatically under-reports on installs where most orgs have no
+    // services. Mirrors the data path's `skipQueryB` rule.
+    const skipQueryBForCount =
+      query.priceMin != null ||
+      query.priceMax != null ||
+      query.categoryId != null ||
+      query.typeId != null;
+
     const countSelectKey = isGroupByOrg
       ? 's."organizationId"'
       : 's."organizationId", oa."id"';
+    const countSelectKeyB = isGroupByOrg
+      ? 'o."id"'
+      : 'o."id", oa."id"';
+
+    // Build Query-B-equivalent WHERE for the count side. Parameter indices
+    // continue from `paramIndex` after Query A's params so the merged param
+    // array stays consistent.
+    const countParamsB: any[] = [];
+    let countPIdxB = paramIndex;
+    const countCondsB: string[] = ['o."isActive" = true'];
+    if (!skipQueryBForCount && query.q) {
+      const variantsB = generateSearchVariants(query.q);
+      const likesB: string[] = [];
+      for (const v of variantsB) {
+        likesB.push(`(
+          o."name" ILIKE $${countPIdxB} OR o."name" % $${countPIdxB + 1}
+          OR o."category" ILIKE $${countPIdxB} OR o."category" % $${countPIdxB + 1}
+          OR oa."name" ILIKE $${countPIdxB} OR oa."name" % $${countPIdxB + 1}
+          OR oa."address" ILIKE $${countPIdxB} OR oa."address" % $${countPIdxB + 1}
+          OR oa."city" ILIKE $${countPIdxB} OR oa."city" % $${countPIdxB + 1}
+        )`);
+        countParamsB.push(`%${v}%`, v);
+        countPIdxB += 2;
+      }
+      countCondsB.push(`(${likesB.join(' OR ')})`);
+    }
+    if (!skipQueryBForCount && query.rating != null) {
+      countCondsB.push(
+        `(CASE WHEN o."reviewCount" = 0 THEN 5 ELSE o."averageRating" END) >= $${countPIdxB}`,
+      );
+      countParamsB.push(query.rating);
+      countPIdxB++;
+    }
+    if (!skipQueryBForCount && query.orgCategory) {
+      countCondsB.push(`o."category" = $${countPIdxB}`);
+      countParamsB.push(query.orgCategory);
+      countPIdxB++;
+    }
+    let countDistanceExprB = 'NULL::float';
+    let countGeoB = '';
+    if (!skipQueryBForCount && hasGeo) {
+      countDistanceExprB = `(
+        6371 * acos(
+          LEAST(1.0,
+            cos(radians($${countPIdxB})) * cos(radians(oa."lat"))
+            * cos(radians(oa."lon") - radians($${countPIdxB + 1}))
+            + sin(radians($${countPIdxB})) * sin(radians(oa."lat"))
+          )
+        )
+      )`;
+      countParamsB.push(query.lat, query.lon);
+      countPIdxB += 2;
+      countGeoB = ` AND oa."lat" IS NOT NULL AND ${countDistanceExprB} <= $${countPIdxB}`;
+      countParamsB.push((query.radius ?? 25000) / 1000);
+      countPIdxB++;
+    }
+    const whereClauseCountB = countCondsB.join(' AND ') + countGeoB;
+
+    const countSqlA = `
+      SELECT DISTINCT ${countSelectKey}
+      FROM services s
+      JOIN service_types st ON s."typeId" = st."id"
+      JOIN service_categories sc ON st."categoryId" = sc."id"
+      LEFT JOIN organizations o ON s."organizationId" = o."id"
+      LEFT JOIN location_services ls ON ls."serviceId" = s."id"
+      LEFT JOIN LATERAL (
+        SELECT oa2.*
+        FROM organization_addresses oa2
+        WHERE oa2."id" = ls."locationId"
+           OR (ls."locationId" IS NULL AND oa2."organizationId" = s."organizationId")
+      ) oa ON true
+      LEFT JOIN service_min_prices sp ON sp."serviceId" = s."id"
+      WHERE ${whereClause}
+    `;
+    const countSqlB = `
+      SELECT DISTINCT ${countSelectKeyB}
+      FROM organizations o
+      LEFT JOIN LATERAL (
+        SELECT oa2.*
+        FROM organization_addresses oa2
+        WHERE oa2."organizationId" = o."id"
+      ) oa ON true
+      WHERE ${whereClauseCountB}
+    `;
     const countSql = `
       WITH service_min_prices AS (
         SELECT "serviceId", MIN("price")::float AS "minPrice"
@@ -316,25 +410,14 @@ export class SearchService {
         GROUP BY "serviceId"
       )
       SELECT COUNT(*) AS "total" FROM (
-        SELECT DISTINCT ${countSelectKey}
-        FROM services s
-        JOIN service_types st ON s."typeId" = st."id"
-        JOIN service_categories sc ON st."categoryId" = sc."id"
-        LEFT JOIN organizations o ON s."organizationId" = o."id"
-        LEFT JOIN location_services ls ON ls."serviceId" = s."id"
-        LEFT JOIN LATERAL (
-          SELECT oa2.*
-          FROM organization_addresses oa2
-          WHERE oa2."id" = ls."locationId"
-             OR (ls."locationId" IS NULL AND oa2."organizationId" = s."organizationId")
-        ) oa ON true
-        LEFT JOIN service_min_prices sp ON sp."serviceId" = s."id"
-        WHERE ${whereClause}
+        ${countSqlA}
+        ${skipQueryBForCount ? '' : `UNION ${countSqlB}`}
       ) merged
     `;
     const countRows = await this.prisma.$queryRawUnsafe<{ total: bigint }[]>(
       countSql,
       ...params,
+      ...countParamsB,
     );
     const realTotal = Number(countRows[0]?.total ?? 0);
 
