@@ -36,6 +36,12 @@ export class OrganizationEventConsumer implements OnModuleInit {
   private readonly ORG_EXCHANGE = 'organization';
   private readonly ADDR_QUEUE = 'company-services.address-events';
   private readonly ADDR_EXCHANGE = 'organization.address';
+  // PET_STORES addresses live in booking-company-products as Branch records;
+  // organization-service does NOT publish address.* events for them (anti-loop
+  // with booking-company-products' address handler). Mirror branch.* into the
+  // same organization_addresses upsert path so /search surfaces them.
+  private readonly BRANCH_QUEUE = 'company-services.branch-events';
+  private readonly BRANCH_EXCHANGE = 'branch';
 
   constructor(
     private readonly rabbitmqService: RabbitmqService,
@@ -62,11 +68,86 @@ export class OrganizationEventConsumer implements OnModuleInit {
       this.logger.log(
         `OrganizationEventConsumer: Subscribed to ${this.ADDR_EXCHANGE} exchange`,
       );
+
+      await this.rabbitmqService.subscribeFanoutExchange(
+        this.BRANCH_EXCHANGE,
+        this.BRANCH_QUEUE,
+        this.handleBranchMessage.bind(this),
+      );
+      this.logger.log(
+        `OrganizationEventConsumer: Subscribed to ${this.BRANCH_EXCHANGE} exchange`,
+      );
     } catch (error) {
       this.logger.error(
         'OrganizationEventConsumer: Failed to subscribe',
         error,
       );
+    }
+  }
+
+  /**
+   * Branch payload from booking-company-products uses
+   * latitude/longitude/offlineAddress/phones; map to the AddressEvent shape
+   * (lat/lon/address/phone) and reuse the address upsert/delete path. The
+   * branch id IS the address id (see address-event.handler.createFromAddress
+   * in booking-company-products), so the row keys line up.
+   */
+  private async handleBranchMessage(msg: any) {
+    if (!msg) return;
+
+    try {
+      const content = JSON.parse(msg.content.toString());
+      const routingKey = msg.fields?.routingKey || '';
+      const data = content.data || content;
+
+      this.logger.log(
+        `OrganizationEventConsumer: Processing ${routingKey} for branch ${data.id}`,
+      );
+
+      const branchPhone = Array.isArray(data.phones)
+        ? data.phones
+        : data.phone;
+
+      const asAddress: AddressEvent = {
+        id: data.id,
+        organizationId: data.organizationId,
+        name: data.name,
+        city: data.city,
+        state: data.region,
+        country: data.country,
+        address: data.offlineAddress ?? data.address ?? '',
+        lat: data.latitude ?? data.lat,
+        lon: data.longitude ?? data.lon,
+        workTime: data.workingHours ?? data.workTime,
+        phone: branchPhone,
+      };
+
+      switch (routingKey) {
+        case 'branch.created':
+        case 'branch.updated':
+          if (typeof asAddress.lat === 'number' &&
+              typeof asAddress.lon === 'number') {
+            await this.upsertAddress(asAddress);
+          }
+          break;
+        case 'branch.deleted':
+          await this.deleteAddress(data.id);
+          break;
+        default:
+          this.logger.log(
+            `OrganizationEventConsumer: Unknown branch routing key: ${routingKey}`,
+          );
+      }
+
+      this.rabbitmqService.getChannel().ack(msg);
+    } catch (error) {
+      this.logger.error(
+        'OrganizationEventConsumer: Error processing branch message',
+        error,
+      );
+
+      const isPermanent = error instanceof SyntaxError;
+      this.rabbitmqService.getChannel().nack(msg, false, !isPermanent);
     }
   }
 
