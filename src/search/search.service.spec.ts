@@ -9,7 +9,10 @@ describe('SearchService — radius unit conversion (meters → km for Haversine)
     mockPrisma = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     };
-    service = new SearchService(mockPrisma as any);
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+    );
   });
 
   it.each([
@@ -45,7 +48,10 @@ describe('SearchService — suggest internal radius (L833 fix)', () => {
     mockPrisma = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     };
-    service = new SearchService(mockPrisma as any);
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+    );
   });
 
   it('searchBusinessesViaSearch() passes radius: 25000 (25 km in meters) to search()', async () => {
@@ -83,7 +89,10 @@ describe('SearchService — default-5 rating for unreviewed orgs (CASE WHEN)', (
     mockPrisma = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
     };
-    service = new SearchService(mockPrisma as any);
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+    );
   });
 
   it('Query A SELECT projects orgRating via CASE WHEN reviewCount = 0 → 5', async () => {
@@ -155,7 +164,10 @@ describe('SearchService — total reflects real match count (P3 fix)', () => {
 
   beforeEach(() => {
     mockPrisma = { $queryRawUnsafe: jest.fn() };
-    service = new SearchService(mockPrisma as any);
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+    );
   });
 
   it('runs a separate COUNT query before the main data query', async () => {

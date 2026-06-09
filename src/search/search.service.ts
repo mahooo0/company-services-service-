@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { OrgServiceClient } from '@/clients/org-service-client.service';
 import {
   SearchQueryDto,
   SearchSortBy,
@@ -134,6 +135,19 @@ interface BranchResult {
     averageRating: number;
     reviewCount: number;
     phones: any;
+    /**
+     * Populated only when the request was filtered by orgCategory=BREEDERS.
+     * Cross-service enrichment from organization-service's
+     * /breeders/availability endpoint — surfaces marketplace activity
+     * (which orgs currently have animals for sale, what breeds, etc.).
+     * Absent on non-BREEDERS rows; zeroed entry when the org has no
+     * AVAILABLE children in PUBLISHED litters at request time.
+     */
+    breedersInfo?: {
+      hasAvailableAnimals: boolean;
+      availableCount: number;
+      availableBreeds: { value: string; count: number }[];
+    };
   };
   branch: {
     id: string;
@@ -171,7 +185,34 @@ export interface SearchResponse {
 
 @Injectable()
 export class SearchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly orgServiceClient: OrgServiceClient,
+  ) {}
+
+  /**
+   * Enrich the paginated page with breedersInfo when the search was
+   * filtered to BREEDERS orgs. Single bulk call to organization-service;
+   * absent orgs fall back to a zeroed entry. Failures (timeout / discovery)
+   * leave breedersInfo undefined — search continues.
+   */
+  private async enrichWithBreedersInfo(
+    rows: BranchResult[],
+    orgCategory: string | undefined,
+  ): Promise<void> {
+    if (orgCategory !== 'BREEDERS' || rows.length === 0) return;
+    const orgIds = [...new Set(rows.map((r) => r.organization.id))];
+    const availability =
+      await this.orgServiceClient.getBreedersAvailability(orgIds);
+    for (const row of rows) {
+      const entry = availability[row.organization.id];
+      row.organization.breedersInfo = entry ?? {
+        hasAvailableAnimals: false,
+        availableCount: 0,
+        availableBreeds: [],
+      };
+    }
+  }
 
   /**
    * Единый поиск: Компания → Точка (адрес + гео) → Услуги.
@@ -318,9 +359,7 @@ export class SearchService {
     const countSelectKey = isGroupByOrg
       ? 's."organizationId"'
       : 's."organizationId", oa."id"';
-    const countSelectKeyB = isGroupByOrg
-      ? 'o."id"'
-      : 'o."id", oa."id"';
+    const countSelectKeyB = isGroupByOrg ? 'o."id"' : 'o."id", oa."id"';
 
     // Build Query-B-equivalent WHERE for the count side. Parameter indices
     // continue from `paramIndex` after Query A's params so the merged param
@@ -769,6 +808,8 @@ export class SearchService {
       const total = realTotal;
       const paginated = allGroups.slice(offset, offset + limit);
 
+      await this.enrichWithBreedersInfo(paginated, query.orgCategory);
+
       return {
         data: paginated,
         total,
@@ -872,6 +913,8 @@ export class SearchService {
     // orgs in groupBy mode), not from the LIMIT-capped uniqueOrgs.length.
     const total = realTotal;
     const paginated = uniqueOrgs.slice(offset, offset + limit);
+
+    await this.enrichWithBreedersInfo(paginated, query.orgCategory);
 
     return {
       data: paginated,
