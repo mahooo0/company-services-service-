@@ -231,3 +231,31 @@ model Schedule {
   @@index([locationId])
   @@map("schedules")
 }
+
+// Непартнёрские компании: справочник для выдачи /search (карта и каталог).
+// Нет услуг, нет аккаунта, нет отзывов на платформе — только контакты и координаты.
+// Заливаются разовым импортом (prisma/seed-companies-import.ts), не синхронизируются.
+// category уже нормализована в енум-формат (VET_CLINICS, ...), чтобы фильтр orgCategory работал.
+model SeedCompany {
+  id        String   @id
+  name      String
+  category  String
+  slug      String
+  phone     String?
+  address   String?
+  place     String?
+  lat       Float    @db.DoublePrecision
+  lon       Float    @db.DoublePrecision
+  stars     Float?
+  reviews   Int?
+  email     String?
+  facebook  String?
+  instagram String?
+  whatsapp  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([lat, lon])
+  @@map("seed_companies")
+}
