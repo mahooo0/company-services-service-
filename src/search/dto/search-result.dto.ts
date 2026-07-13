@@ -82,6 +82,14 @@ export class SearchOrganizationDto {
 
   @ApiProperty()
   reviewCount: number;
+
+  @ApiProperty({
+    description:
+      'False for seed (non-partner) companies: scraped businesses with no ' +
+      'services, no reviews and no company page. They have no slug — do not ' +
+      'link them to /company/{slug}, and do not render a rating.',
+  })
+  isPartner: boolean;
 }
 
 export class SearchResultItemDto {

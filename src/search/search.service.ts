@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { OrgServiceClient } from '@/clients/org-service-client.service';
+import { LogService } from '@/log/log.service';
 import {
   SearchQueryDto,
   SearchSortBy,
@@ -136,6 +137,13 @@ interface BranchResult {
     reviewCount: number;
     phones: any;
     /**
+     * False for seed (non-partner) companies — scraped businesses that are not
+     * registered on the platform. They have no services, no reviews and no
+     * company page, so the frontend must not link them to /company/{slug} or
+     * render a rating. True for every organization row.
+     */
+    isPartner: boolean;
+    /**
      * Populated only when the request was filtered by orgCategory=BREEDERS.
      * Cross-service enrichment from organization-service's
      * /breeders/availability endpoint — surfaces marketplace activity
@@ -188,7 +196,23 @@ export class SearchService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly orgServiceClient: OrgServiceClient,
+    private readonly logger: LogService,
   ) {}
+
+  /**
+   * The row cap assumes the whole matching set fits under it. That assumption is
+   * what silently broke before — the Kyiv map lost 751 of 1384 pins and nobody
+   * noticed, because a capped query looks exactly like a complete one. Say so in
+   * the logs when a source query comes back full, so growth in the data is what
+   * raises the alarm, not users reporting missing pins.
+   */
+  private warnIfCapHit(source: string, rowCount: number, cap: number): void {
+    if (rowCount < cap) return;
+    this.logger.warn(
+      `search: ${source} hit the row cap — results are incomplete and pagination will under-report`,
+      { source, rowCount, cap },
+    );
+  }
 
   /**
    * Enrich the paginated page with breedersInfo when the search was
@@ -225,11 +249,23 @@ export class SearchService {
     const offset = (page - 1) * limit;
     const hasGeo = query.lat != null && query.lon != null;
     const isGroupByOrg = query.groupBy === GroupBy.ORGANIZATION;
-    // In groupBy mode the per-query SQL LIMIT must cover enough rows to dedupe
-    // down to `limit` unique orgs. A multi-branch org consumes N rows out of
-    // the cap to yield 1 unique org. Bump the cap to max(limit * 50, 5000) for
-    // groupBy mode. Default path keeps the existing limit * 5 cap (byte-identical).
-    const sqlRowCap = isGroupByOrg ? Math.max(limit * 50, 5000) : limit * 5;
+    // Queries A/B/C each read from OFFSET 0 and are merged into one map, which
+    // is then sliced in JS to produce the page. Two rules follow, and the old
+    // `limit * 5` default-path cap broke both:
+    //
+    // 1. The cap must be page-invariant. It decides how many rows each source
+    //    contributes, and the merge order (A before B before C) depends on that,
+    //    so a cap that grows with `offset` builds a different map per page and
+    //    the slice boundaries drift — rows come back on two pages while others
+    //    are never returned at all.
+    // 2. The cap must cover the whole matching set. At `limit * 5` the Kyiv map
+    //    (limit=100, cap=500) returned 633 of 1384 pins and served pages 8..14
+    //    empty, while `total` — an uncapped COUNT — kept promising the rest.
+    //
+    // One generous, page-invariant cap satisfies both, and a spare LIMIT costs
+    // almost nothing when fewer rows exist: on the Kyiv map, raising it from 500
+    // to 20000 moved a page from 2.87s to 3.12s and made it complete.
+    const sqlRowCap = Math.max(limit * 50, 20000);
 
     const conditions: string[] = ['s."isActive" = true'];
     const params: any[] = [];
@@ -415,6 +451,57 @@ export class SearchService {
     }
     const whereClauseCountB = countCondsB.join(' AND ') + countGeoB;
 
+    // Count mirror for Query C (seed companies). Same gate as the data path —
+    // including `rating`, which excludes seed rows entirely. Parameter indices
+    // continue after Query B's so the merged param array stays positional.
+    const skipQueryCForCount = skipQueryBForCount || query.rating != null;
+
+    const countSelectKeyC = isGroupByOrg
+      ? 'sc."id"'
+      : 'sc."id", sc."id" AS "branchId"';
+
+    const countParamsC: any[] = [];
+    let countPIdxC = countPIdxB;
+    const countCondsC: string[] = [];
+    if (!skipQueryCForCount && query.q) {
+      const variantsC = generateSearchVariants(query.q);
+      const likesC: string[] = [];
+      for (const v of variantsC) {
+        likesC.push(`(
+          sc."name" ILIKE $${countPIdxC} OR sc."name" % $${countPIdxC + 1}
+          OR sc."address" ILIKE $${countPIdxC} OR sc."address" % $${countPIdxC + 1}
+          OR sc."place" ILIKE $${countPIdxC} OR sc."place" % $${countPIdxC + 1}
+        )`);
+        countParamsC.push(`%${v}%`, v);
+        countPIdxC += 2;
+      }
+      countCondsC.push(`(${likesC.join(' OR ')})`);
+    }
+    if (!skipQueryCForCount && query.orgCategory) {
+      countCondsC.push(`sc."category" = $${countPIdxC}`);
+      countParamsC.push(query.orgCategory);
+      countPIdxC++;
+    }
+    let countGeoC = '';
+    if (!skipQueryCForCount && hasGeo) {
+      const countDistanceExprC = `(
+        6371 * acos(
+          LEAST(1.0,
+            cos(radians($${countPIdxC})) * cos(radians(sc."lat"))
+            * cos(radians(sc."lon") - radians($${countPIdxC + 1}))
+            + sin(radians($${countPIdxC})) * sin(radians(sc."lat"))
+          )
+        )
+      )`;
+      countParamsC.push(query.lat, query.lon);
+      countPIdxC += 2;
+      countGeoC = ` AND ${countDistanceExprC} <= $${countPIdxC}`;
+      countParamsC.push((query.radius ?? 25000) / 1000);
+      countPIdxC++;
+    }
+    const whereClauseCountC =
+      (countCondsC.length ? countCondsC.join(' AND ') : 'TRUE') + countGeoC;
+
     const countSqlA = `
       SELECT DISTINCT ${countSelectKey}
       FROM services s
@@ -441,6 +528,11 @@ export class SearchService {
       ) oa ON true
       WHERE ${whereClauseCountB}
     `;
+    const countSqlC = `
+      SELECT DISTINCT ${countSelectKeyC}
+      FROM seed_companies sc
+      WHERE ${whereClauseCountC}
+    `;
     const countSql = `
       WITH service_min_prices AS (
         SELECT "serviceId", MIN("price")::float AS "minPrice"
@@ -451,12 +543,14 @@ export class SearchService {
       SELECT COUNT(*) AS "total" FROM (
         ${countSqlA}
         ${skipQueryBForCount ? '' : `UNION ${countSqlB}`}
+        ${skipQueryCForCount ? '' : `UNION ${countSqlC}`}
       ) merged
     `;
     const countRows = await this.prisma.$queryRawUnsafe<{ total: bigint }[]>(
       countSql,
       ...params,
       ...countParamsB,
+      ...countParamsC,
     );
     const realTotal = Number(countRows[0]?.total ?? 0);
 
@@ -481,6 +575,13 @@ export class SearchService {
       default:
         orderBy = 'o."averageRating" DESC, s."name" ASC';
     }
+
+    // Every sort above can tie (same rating, same name, same price), and each
+    // page re-runs the query from OFFSET 0 with a different LIMIT before slicing
+    // the merged map. Without a unique final key Postgres is free to order tied
+    // rows differently per run, so page boundaries drifted: 79 of 1732 Kyiv rows
+    // came back on two pages while 79 others were never returned at all.
+    const tieBreakA = ', s."organizationId", oa."id" NULLS LAST, s."id"';
 
     // Основной запрос: плоский список (услуга + точка + организация)
     const sql = `
@@ -534,13 +635,14 @@ export class SearchService {
       ) oa ON true
       LEFT JOIN service_min_prices sp ON sp."serviceId" = s."id"
       WHERE ${whereClause}
-      ORDER BY ${orderBy}
+      ORDER BY ${orderBy}${tieBreakA}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
 
     params.push(sqlRowCap, 0); // берём с запасом для группировки (raised in groupBy=organization mode)
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(sql, ...params);
+    this.warnIfCapHit('query A (services)', rows.length, sqlRowCap);
 
     // Группировка: orgId+branchId → { organization, branch, services[] }
     const groupKey = (r: any) =>
@@ -563,6 +665,7 @@ export class SearchService {
             averageRating: Number(r.orgRating) || 0,
             reviewCount: Number(r.orgReviewCount) || 0,
             phones: r.orgPhones ?? null,
+            isPartner: true,
           },
           branch: r.branchId
             ? {
@@ -753,12 +856,13 @@ export class SearchService {
           WHERE oa2."organizationId" = o."id"
         ) oa ON true
         WHERE ${whereClauseB}
-        ORDER BY ${orderByB}
+        ORDER BY ${orderByB}, o."id", oa."id" NULLS LAST
         LIMIT $${pIdxB} OFFSET 0
       `;
       paramsB.push(sqlRowCap);
 
       const rowsB = await this.prisma.$queryRawUnsafe<any[]>(sqlB, ...paramsB);
+      this.warnIfCapHit('query B (organizations)', rowsB.length, sqlRowCap);
 
       // Merge: only insert org-rooted rows that don't already exist in groupMap
       // (guards against duplicating an org that already had matching services).
@@ -777,6 +881,7 @@ export class SearchService {
             averageRating: Number(r.orgRating) || 0,
             reviewCount: Number(r.orgReviewCount) || 0,
             phones: r.orgPhones ?? null,
+            isPartner: true,
           },
           branch: r.branchId
             ? {
@@ -794,6 +899,148 @@ export class SearchService {
                 phone: r.branchPhone ?? null,
               }
             : null,
+          services: [],
+        });
+      }
+    }
+
+    // Query C: seed (non-partner) companies — scraped businesses with no
+    // services, no account and no platform reviews. Mirrors Query B's shape
+    // (a serviceless row still needs a branch to become a map pin), reading
+    // from the local `seed_companies` copy.
+    //
+    // Skipped on service-bound filters for the same reason as Query B, PLUS on
+    // `rating`: a seed row has no platform reviews, and Query B's
+    // "reviewCount = 0 -> treat as 5 stars" rule would otherwise let every seed
+    // company pass a "5 stars only" filter as a fake five-star business.
+    //
+    // Merged last and never overwrites an existing key, so partners always rank
+    // above non-partners — matching the legacy Convex catalog behaviour.
+    const skipQueryC =
+      query.priceMin != null ||
+      query.priceMax != null ||
+      query.categoryId != null ||
+      query.typeId != null ||
+      query.rating != null;
+
+    if (!skipQueryC) {
+      const conditionsC: string[] = [];
+      const paramsC: any[] = [];
+      let pIdxC = 1;
+
+      if (query.q) {
+        const variantsC = generateSearchVariants(query.q);
+        const likeClausesC: string[] = [];
+        for (const variant of variantsC) {
+          likeClausesC.push(`(
+            sc."name" ILIKE $${pIdxC} OR sc."name" % $${pIdxC + 1}
+            OR sc."address" ILIKE $${pIdxC} OR sc."address" % $${pIdxC + 1}
+            OR sc."place" ILIKE $${pIdxC} OR sc."place" % $${pIdxC + 1}
+          )`);
+          paramsC.push(`%${variant}%`, variant);
+          pIdxC += 2;
+        }
+        conditionsC.push(`(${likeClausesC.join(' OR ')})`);
+      }
+
+      if (query.orgCategory) {
+        // `category` is stored pre-normalized to the enum form on import,
+        // so it compares directly against the same values organizations use.
+        conditionsC.push(`sc."category" = $${pIdxC}`);
+        paramsC.push(query.orgCategory);
+        pIdxC++;
+      }
+
+      let distanceExprC = 'NULL::float';
+      let geoConditionC = '';
+      if (hasGeo) {
+        // Haversine — see Query A note on PostGIS rollback.
+        distanceExprC = `(
+          6371 * acos(
+            LEAST(1.0,
+              cos(radians($${pIdxC})) * cos(radians(sc."lat"))
+              * cos(radians(sc."lon") - radians($${pIdxC + 1}))
+              + sin(radians($${pIdxC})) * sin(radians(sc."lat"))
+            )
+          )
+        )`;
+        paramsC.push(query.lat, query.lon);
+        pIdxC += 2;
+
+        geoConditionC = ` AND ${distanceExprC} <= $${pIdxC}`;
+        paramsC.push((query.radius ?? 25000) / 1000);
+        pIdxC++;
+      }
+
+      const whereClauseC =
+        (conditionsC.length ? conditionsC.join(' AND ') : 'TRUE') +
+        geoConditionC;
+
+      // No rating and no price on a seed row — only distance and name can order it.
+      const orderByC =
+        query.sort === SearchSortBy.DISTANCE && hasGeo
+          ? 'distance ASC NULLS LAST'
+          : 'sc."name" ASC';
+
+      const sqlC = `
+        SELECT
+          sc."id" AS "seedId",
+          sc."name" AS "seedName",
+          sc."category" AS "seedCategory",
+          sc."address" AS "seedAddress",
+          sc."place" AS "seedPlace",
+          sc."phone" AS "seedPhone",
+          sc."lat" AS "seedLat",
+          sc."lon" AS "seedLon",
+          ${distanceExprC} AS distance
+        FROM seed_companies sc
+        WHERE ${whereClauseC}
+        ORDER BY ${orderByC}, sc."id"
+        LIMIT $${pIdxC} OFFSET 0
+      `;
+      paramsC.push(sqlRowCap);
+
+      const rowsC = await this.prisma.$queryRawUnsafe<any[]>(sqlC, ...paramsC);
+      this.warnIfCapHit('query C (seed companies)', rowsC.length, sqlRowCap);
+
+      for (const r of rowsC) {
+        // A seed company has no separate branch entity — the address is part of
+        // the row — so its own id doubles as the branch id. The frontend uses
+        // branch.id to de-duplicate map markers, so it must be stable and unique.
+        const key = `${r.seedId}::${r.seedId}`;
+        if (groupMap.has(key)) continue;
+
+        const phones = r.seedPhone ? [r.seedPhone] : null;
+
+        groupMap.set(key, {
+          organization: {
+            id: r.seedId,
+            // `slug` in the source is the CATEGORY slug ("vet-clinics"), not a
+            // business slug. Exposing it would make the frontend build a broken
+            // /company/{slug} link, so a seed company has no slug at all.
+            slug: null,
+            name: r.seedName,
+            category: r.seedCategory ?? null,
+            description: null,
+            avatar: null,
+            // Scraped Google ratings are not platform reviews and are not shown.
+            averageRating: 0,
+            reviewCount: 0,
+            phones,
+            isPartner: false,
+          },
+          branch: {
+            id: r.seedId,
+            name: null,
+            address: r.seedAddress ?? null,
+            city: r.seedPlace ?? null,
+            lat: r.seedLat,
+            lon: r.seedLon,
+            distance:
+              r.distance != null ? Math.round(r.distance * 100) / 100 : null,
+            workTime: null,
+            phone: phones,
+          },
           services: [],
         });
       }

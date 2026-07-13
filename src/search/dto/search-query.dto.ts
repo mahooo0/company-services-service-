@@ -139,7 +139,7 @@ export class SearchQueryDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(100)
+  @Max(2000)
   @IsOptional()
   limit?: number = 20;
 }

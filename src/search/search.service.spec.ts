@@ -12,6 +12,7 @@ describe('SearchService — radius unit conversion (meters → km for Haversine)
     service = new SearchService(
       mockPrisma as any,
       { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
     );
   });
 
@@ -51,6 +52,7 @@ describe('SearchService — suggest internal radius (L833 fix)', () => {
     service = new SearchService(
       mockPrisma as any,
       { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
     );
   });
 
@@ -92,6 +94,7 @@ describe('SearchService — default-5 rating for unreviewed orgs (CASE WHEN)', (
     service = new SearchService(
       mockPrisma as any,
       { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
     );
   });
 
@@ -167,6 +170,7 @@ describe('SearchService — total reflects real match count (P3 fix)', () => {
     service = new SearchService(
       mockPrisma as any,
       { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
     );
   });
 
@@ -249,5 +253,140 @@ describe('SearchService — total reflects real match count (P3 fix)', () => {
     const countSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0] as string;
     expect(countSql).toMatch(/SELECT\s+COUNT\(\*\)/i);
     expect(countSql).not.toMatch(/\bLIMIT\b/i);
+  });
+});
+
+describe('SearchService — Query C (seed / non-partner companies)', () => {
+  let service: SearchService;
+  let mockPrisma: { $queryRawUnsafe: jest.Mock };
+
+  const seedRow = {
+    seedId: '11111111-1111-5111-8111-111111111111',
+    seedName: 'Зоомагазин Лапка',
+    seedCategory: 'PET_STORES',
+    seedAddress: 'вулиця Хрещатик 1',
+    seedPlace: 'Київ',
+    seedPhone: '(050) 123-4567',
+    seedLat: 50.45,
+    seedLon: 30.52,
+    distance: 1.234,
+  };
+
+  // Query A carries a `COUNT(*) OVER()` window, so match the counter by its
+  // full projection instead — otherwise the count fixture leaks into Query A.
+  const isCountSql = (sql: string) =>
+    /SELECT\s+COUNT\(\*\)\s+AS\s+"total"/i.test(sql);
+  const isSeedDataSql = (sql: string) =>
+    /FROM seed_companies sc/i.test(sql) && !isCountSql(sql);
+
+  /** Routes each SQL statement to its own fixture, whatever the call order. */
+  const routeSql = (sql: string) => {
+    if (isCountSql(sql)) return [{ total: BigInt(1) }];
+    if (isSeedDataSql(sql)) return [seedRow];
+    return [];
+  };
+
+  const seedQueries = () =>
+    mockPrisma.$queryRawUnsafe.mock.calls
+      .map(([sql]) => sql as string)
+      .filter(isSeedDataSql);
+
+  beforeEach(() => {
+    mockPrisma = {
+      $queryRawUnsafe: jest.fn((sql: string) => Promise.resolve(routeSql(sql))),
+    };
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
+    );
+  });
+
+  it('returns seed companies when no service-bound filter is applied', async () => {
+    const res = await service.search({ page: 1, limit: 20 } as SearchQueryDto);
+
+    expect(seedQueries()).toHaveLength(1);
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0].organization.isPartner).toBe(false);
+  });
+
+  it('maps a seed row into a map-renderable result', async () => {
+    const res = await service.search({
+      lat: 50.4501,
+      lon: 30.5234,
+      page: 1,
+      limit: 20,
+    } as SearchQueryDto);
+
+    const { organization, branch, services } = res.data[0];
+    expect(organization).toMatchObject({
+      id: seedRow.seedId,
+      name: seedRow.seedName,
+      category: 'PET_STORES',
+      isPartner: false,
+      // A category slug must never leak into organization.slug — the frontend
+      // would build a broken /company/{slug} link out of it.
+      slug: null,
+      // Scraped Google stars are not platform reviews and are not exposed.
+      averageRating: 0,
+      reviewCount: 0,
+    });
+    expect(organization.phones).toEqual([seedRow.seedPhone]);
+    // The frontend silently drops any result without branch lat/lon — a seed
+    // company would vanish from the map without this synthetic branch.
+    expect(branch).toMatchObject({
+      id: seedRow.seedId,
+      address: seedRow.seedAddress,
+      city: seedRow.seedPlace,
+      lat: seedRow.seedLat,
+      lon: seedRow.seedLon,
+      distance: 1.23,
+    });
+    expect(services).toEqual([]);
+  });
+
+  it.each([
+    ['priceMin', { priceMin: 100 }],
+    ['priceMax', { priceMax: 900 }],
+    ['categoryId', { categoryId: 'cat-uuid' }],
+    ['typeId', { typeId: 'type-uuid' }],
+    // A seed row has no platform reviews. Without this gate, Query B's
+    // "reviewCount = 0 -> 5 stars" rule would pass every seed company off as
+    // a five-star business.
+    ['rating', { rating: 4 }],
+  ])('excludes seed companies when %s is applied', async (_name, filter) => {
+    const res = await service.search({
+      page: 1,
+      limit: 20,
+      ...filter,
+    } as SearchQueryDto);
+
+    expect(seedQueries()).toHaveLength(0);
+    expect(res.data).toHaveLength(0);
+    const countSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0] as string;
+    expect(countSql).not.toMatch(/FROM seed_companies/i);
+  });
+
+  it('counts seed companies in total, so pagination does not lie', async () => {
+    await service.search({ page: 1, limit: 20 } as SearchQueryDto);
+
+    const countSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0] as string;
+    expect(countSql).toMatch(/UNION[\s\S]*FROM seed_companies sc/i);
+    expect(countSql).not.toMatch(/\bLIMIT\b/i);
+  });
+
+  it('filters seed companies by orgCategory using the normalized enum value', async () => {
+    await service.search({
+      page: 1,
+      limit: 20,
+      orgCategory: 'VET_CLINICS',
+    } as SearchQueryDto);
+
+    const [sql, ...params] = mockPrisma.$queryRawUnsafe.mock.calls.find(
+      ([s]: [string]) => isSeedDataSql(s),
+    ) as [string, ...unknown[]];
+
+    expect(sql).toMatch(/sc\."category" = \$\d+/);
+    expect(params).toContain('VET_CLINICS');
   });
 });
