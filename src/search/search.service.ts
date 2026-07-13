@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
 import { OrgServiceClient } from '@/clients/org-service-client.service';
 import { LogService } from '@/log/log.service';
@@ -6,6 +6,7 @@ import {
   SearchQueryDto,
   SearchSortBy,
   GroupBy,
+  SeedCompanyDto,
   SuggestQueryDto,
   SuggestResponseDto,
   SuggestCategoryDto,
@@ -1196,6 +1197,58 @@ export class SearchService {
     this.serviceSynonymsCache = set;
     this.serviceSynonymsCacheTs = now;
     return set;
+  }
+
+  /**
+   * Detail of a single seed (non-partner) company, for the reduced page these
+   * get instead of /company/{slug}. Contacts and location only — a seed company
+   * has no services, no schedule, and its scraped rating is not exposed.
+   */
+  async getSeedCompany(id: string): Promise<SeedCompanyDto> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      {
+        id: string;
+        name: string;
+        category: string;
+        slug: string;
+        phone: string | null;
+        address: string | null;
+        place: string | null;
+        lat: number;
+        lon: number;
+        email: string | null;
+        facebook: string | null;
+        instagram: string | null;
+        whatsapp: string | null;
+      }[]
+    >(
+      `SELECT "id", "name", "category", "slug", "phone", "address", "place",
+              "lat", "lon", "email", "facebook", "instagram", "whatsapp"
+         FROM seed_companies
+        WHERE "id" = $1`,
+      id,
+    );
+
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException(`Seed company ${id} not found`);
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      category: row.category,
+      categorySlug: row.slug,
+      phone: row.phone ?? undefined,
+      address: row.address ?? undefined,
+      city: row.place ?? undefined,
+      lat: row.lat,
+      lon: row.lon,
+      email: row.email ?? undefined,
+      facebook: row.facebook ?? undefined,
+      instagram: row.instagram ?? undefined,
+      whatsapp: row.whatsapp ?? undefined,
+    };
   }
 
   /**

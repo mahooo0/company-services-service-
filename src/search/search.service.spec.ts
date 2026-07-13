@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { SearchService } from './search.service';
 import { SearchQueryDto } from './dto';
 
@@ -388,5 +389,77 @@ describe('SearchService — Query C (seed / non-partner companies)', () => {
 
     expect(sql).toMatch(/sc\."category" = \$\d+/);
     expect(params).toContain('VET_CLINICS');
+  });
+});
+
+describe('SearchService — getSeedCompany (non-partner detail page)', () => {
+  let service: SearchService;
+  let mockPrisma: { $queryRawUnsafe: jest.Mock };
+
+  const row = {
+    id: '11111111-1111-5111-8111-111111111111',
+    name: 'Зоомагазин Лапка',
+    category: 'PET_STORES',
+    slug: 'pet-stores',
+    phone: '(050) 123-4567',
+    address: 'вулиця Хрещатик 1',
+    place: 'Київ',
+    lat: 50.45,
+    lon: 30.52,
+    email: null,
+    facebook: null,
+    instagram: null,
+    whatsapp: null,
+  };
+
+  const build = (rows: unknown[]) => {
+    mockPrisma = { $queryRawUnsafe: jest.fn(() => Promise.resolve(rows)) };
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
+    );
+  };
+
+  it('returns contacts and location, and never the scraped rating', async () => {
+    build([row]);
+
+    const result = await service.getSeedCompany(row.id);
+
+    expect(result).toEqual({
+      id: row.id,
+      name: 'Зоомагазин Лапка',
+      category: 'PET_STORES',
+      categorySlug: 'pet-stores',
+      phone: '(050) 123-4567',
+      address: 'вулиця Хрещатик 1',
+      city: 'Київ',
+      lat: 50.45,
+      lon: 30.52,
+      email: undefined,
+      facebook: undefined,
+      instagram: undefined,
+      whatsapp: undefined,
+    });
+    expect(result).not.toHaveProperty('stars');
+    expect(result).not.toHaveProperty('reviews');
+  });
+
+  it('passes the id as a bound parameter, not string-interpolated', async () => {
+    build([row]);
+
+    await service.getSeedCompany("' OR 1=1 --");
+
+    const [sql, ...params] = mockPrisma.$queryRawUnsafe.mock.calls[0];
+    expect(sql).toMatch(/WHERE "id" = \$1/);
+    expect(params).toEqual(["' OR 1=1 --"]);
+  });
+
+  it('throws 404 when the company does not exist', async () => {
+    build([]);
+
+    await expect(service.getSeedCompany('nope')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });

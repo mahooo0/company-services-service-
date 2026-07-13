@@ -1,7 +1,12 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SearchService } from './search.service';
-import { SearchQueryDto, SuggestQueryDto, SuggestResponseDto } from './dto';
+import {
+  SearchQueryDto,
+  SeedCompanyDto,
+  SuggestQueryDto,
+  SuggestResponseDto,
+} from './dto';
 
 @ApiTags('search')
 @Controller('search')
@@ -26,6 +31,20 @@ export class SearchController {
   })
   search(@Query() query: SearchQueryDto) {
     return this.searchService.search(query);
+  }
+
+  @Get('seed-companies/:id')
+  @ApiOperation({
+    summary: 'Непартнёрская (seed) компания по id',
+    description:
+      'Данные для отдельной урезанной страницы непартнёра: контакты и адрес. ' +
+      'Услуг, расписания и рейтинга у seed-компании нет — она не зарегистрирована на сервисе. ' +
+      'Живёт под префиксом /search, потому что это единственный публичный маршрут сервиса в gateway.',
+  })
+  @ApiResponse({ status: 200, type: SeedCompanyDto })
+  @ApiResponse({ status: 404, description: 'Seed company not found' })
+  getSeedCompany(@Param('id') id: string): Promise<SeedCompanyDto> {
+    return this.searchService.getSeedCompany(id);
   }
 
   @Get('suggest')
