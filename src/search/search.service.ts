@@ -30,6 +30,21 @@ type SeededCategory = {
 
 const SEEDED_CATEGORIES = categoriesData as SeededCategory[];
 
+/**
+ * Seed companies are non-partners. The catalog shows a flat 5.0 for all of them
+ * and never their scraped `stars` column, so the rating filter has to agree with
+ * what the card displays: a company shown as 5.0 must come back when you filter
+ * for 5. Mirrors NON_PARTNER_RATING on the frontend.
+ */
+const SEED_COMPANY_RATING = 5;
+
+/**
+ * How well a row matched the text query. `match` is word-level (does the query
+ * appear inside the name), `name` is whole-string (is the name *only* the query) —
+ * the second breaks ties in the first. See buildScoreSql.
+ */
+type MatchScore = { match: number; name: number };
+
 // Pre-build category synonym set (lowercased) for intent classifier.
 const CATEGORY_SYNONYMS = new Set<string>(
   SEEDED_CATEGORIES.flatMap(c =>
@@ -201,6 +216,110 @@ export class SearchService {
   ) {}
 
   /**
+   * Query B (org-rooted) and Query C (seed companies) carry no service rows, so a
+   * filter that can only be satisfied by a service — a price bound, a service
+   * category, a service type — excludes them outright. There is nothing there to
+   * match against.
+   */
+  private isServiceOnlyFilter(query: SearchQueryDto): boolean {
+    return (
+      query.priceMin != null ||
+      query.priceMax != null ||
+      query.categoryId != null ||
+      query.typeId != null
+    );
+  }
+
+  /**
+   * Whether the seed-company source (Query C) drops out of this query entirely.
+   *
+   * Rating does NOT exclude them: they count as SEED_COMPANY_RATING, which clears
+   * any threshold the DTO permits (@Max(5)). The `>` guard only ever fires if that
+   * cap is loosened — the DTO lives in another file and can change without anyone
+   * reading this one.
+   *
+   * The data path and the COUNT path must both read THIS predicate and nothing
+   * else. When the two disagree about which rows exist, `total` stops describing
+   * the list it is attached to — pages come back short or empty, and a capped,
+   * lying result set looks exactly like a complete one. That has already cost this
+   * service 54% of the Kyiv map.
+   */
+  private isSeedExcluded(query: SearchQueryDto): boolean {
+    return (
+      this.isServiceOnlyFilter(query) ||
+      (query.rating != null && query.rating > SEED_COMPANY_RATING)
+    );
+  }
+
+  /**
+   * A per-row text-match score, as a SQL scalar expression. Returns the literal
+   * `0` when there is no text query, so the column is free to select and the
+   * ranking below collapses to "leave the order alone".
+   *
+   * `word_similarity(q, name)` asks "does the query occur as a word inside this
+   * name" — which is the question the catalog actually needs. For q="Лапка" the
+   * company "Зоотовари «Лапка»" scores 1.0; plain `similarity` gives it 0.375 and
+   * buries it under noise. `similarity` is still worth computing as a second,
+   * whole-string score: it is what lets a company literally called "Лапка" outrank
+   * "Зоотовари «Лапка»" when both match a whole word.
+   *
+   * Scored, never filtered. These expressions belong in SELECT and nowhere else —
+   * not in WHERE, not in ORDER BY, not in LIMIT. The row cap's page-invariance and
+   * Query A's tie-break depend on the SQL ordering staying exactly as it is;
+   * ranking happens in JS, after the three sources are merged.
+   */
+  private buildScoreSql(
+    fn: 'word_similarity' | 'similarity',
+    trgmParamIndexes: number[],
+    columns: string[],
+  ): string {
+    if (trgmParamIndexes.length === 0) return '0';
+    const terms = trgmParamIndexes.flatMap(i =>
+      columns.map(col => `${fn}($${i}, COALESCE(${col}, ''))`),
+    );
+    return terms.length === 1 ? terms[0] : `GREATEST(${terms.join(', ')})`;
+  }
+
+  /**
+   * Order the merged result set.
+   *
+   * Without a text query, the order is the merge order — Query A, then B, then C —
+   * so partners sit above non-partners, exactly as the legacy Convex catalog did.
+   * Browsing the catalog is the partners' shelf space and stays that way.
+   *
+   * With a text query it is a different question. Someone who types "Лапка" is
+   * looking for Лапка, and the merge order used to bury it: measured on the live
+   * dev data, q="зоомагазин" returned 1126 results of which 750 were seed
+   * companies, and the first one sat at position 376 — page 32. Present in the
+   * results, absent from the product. So when `q` is set, rank by how well the row
+   * matched the text.
+   *
+   * The tie-break is not decoration. `word_similarity` hands out 1.0 generously:
+   * for q="Лапка", "Лапка", "Зоомагазин Лапка" and "Зоотовари «Лапка»" all score
+   * exactly 1.0. Whole-string `similarity` separates them (1.0 / 0.35 / 0.38), so
+   * the company actually called Лапка comes first. When even that ties, we fall
+   * back to insertion order — Array.prototype.sort is stable by specification —
+   * which means a partner still outranks a seed company on an exact tie. That is
+   * the partner priority, preserved where it costs the user nothing.
+   */
+  private rankByMatch(
+    groupMap: Map<string, BranchResult>,
+    scoreMap: Map<string, MatchScore>,
+    q?: string,
+  ): BranchResult[] {
+    if (!q) return [...groupMap.values()];
+
+    const zero: MatchScore = { match: 0, name: 0 };
+    return [...groupMap.entries()]
+      .sort(([keyA], [keyB]) => {
+        const a = scoreMap.get(keyA) ?? zero;
+        const b = scoreMap.get(keyB) ?? zero;
+        return b.match - a.match || b.name - a.name;
+      })
+      .map(([, group]) => group);
+  }
+
+  /**
    * The row cap assumes the whole matching set fits under it. That assumption is
    * what silently broke before — the Kyiv map lost 751 of 1384 pins and nobody
    * noticed, because a capped query looks exactly like a complete one. Say so in
@@ -273,6 +392,7 @@ export class SearchService {
     let paramIndex = 1;
 
     // Мультиязычный текстовый поиск
+    const trgmIndexesA: number[] = [];
     if (query.q) {
       const variants = generateSearchVariants(query.q);
       const likeClauses: string[] = [];
@@ -289,11 +409,26 @@ export class SearchService {
           OR st."slug" ILIKE $${paramIndex}
         )`);
         params.push(likeParam, trgmParam);
+        trgmIndexesA.push(paramIndex + 1);
         paramIndex += 2;
       }
 
       conditions.push(`(${likeClauses.join(' OR ')})`);
     }
+
+    // Scored on identity and offering — who this is and what they do — never on
+    // geography. A partner whose *address* contains "Київ" must not outrank the
+    // company you actually typed the name of. `sc` here is service_categories,
+    // not seed_companies: the alias is reused across queries.
+    const matchScoreA = this.buildScoreSql('word_similarity', trgmIndexesA, [
+      'o."name"',
+      's."name"',
+      'st."name"',
+      'sc."name"',
+    ]);
+    const nameScoreA = this.buildScoreSql('similarity', trgmIndexesA, [
+      'o."name"',
+    ]);
 
     // Фильтр по рейтингу. CASE WHEN — orgs with reviewCount=0 default to 5★,
     // so they pass `rating >= N` predicates instead of being silently excluded.
@@ -387,11 +522,7 @@ export class SearchService {
     // service-less orgs, the count must also union Query B's universe, else
     // total dramatically under-reports on installs where most orgs have no
     // services. Mirrors the data path's `skipQueryB` rule.
-    const skipQueryBForCount =
-      query.priceMin != null ||
-      query.priceMax != null ||
-      query.categoryId != null ||
-      query.typeId != null;
+    const skipQueryBForCount = this.isServiceOnlyFilter(query);
 
     const countSelectKey = isGroupByOrg
       ? 's."organizationId"'
@@ -452,10 +583,10 @@ export class SearchService {
     }
     const whereClauseCountB = countCondsB.join(' AND ') + countGeoB;
 
-    // Count mirror for Query C (seed companies). Same gate as the data path —
-    // including `rating`, which excludes seed rows entirely. Parameter indices
-    // continue after Query B's so the merged param array stays positional.
-    const skipQueryCForCount = skipQueryBForCount || query.rating != null;
+    // Count mirror for Query C (seed companies). Reads the same predicate as the
+    // data path — not a hand-copy of it — so the two cannot drift apart. Parameter
+    // indices continue after Query B's so the merged param array stays positional.
+    const skipQueryCForCount = this.isSeedExcluded(query);
 
     const countSelectKeyC = isGroupByOrg
       ? 'sc."id"'
@@ -622,6 +753,8 @@ export class SearchService {
         oa."phone" AS "branchPhone",
         ${distanceExpr} AS distance,
         sp."minPrice",
+        ${matchScoreA} AS "matchScore",
+        ${nameScoreA} AS "nameScore",
         COUNT(*) OVER() AS "totalCount"
       FROM services s
       JOIN service_types st ON s."typeId" = st."id"
@@ -651,8 +784,28 @@ export class SearchService {
 
     const groupMap = new Map<string, BranchResult>();
 
+    // Scores live alongside the results, never inside them: BranchResult is the
+    // API response shape, and an internal ranking number has no business leaking
+    // into it. One org+branch can arrive as many service rows — keep the best.
+    const scoreMap = new Map<string, MatchScore>();
+    const recordScore = (key: string, r: any): void => {
+      const next = {
+        match: Number(r.matchScore) || 0,
+        name: Number(r.nameScore) || 0,
+      };
+      const prev = scoreMap.get(key);
+      if (
+        !prev ||
+        next.match > prev.match ||
+        (next.match === prev.match && next.name > prev.name)
+      ) {
+        scoreMap.set(key, next);
+      }
+    };
+
     for (const r of rows) {
       const key = groupKey(r);
+      recordScore(key, r);
 
       if (!groupMap.has(key)) {
         groupMap.set(key, {
@@ -740,11 +893,7 @@ export class SearchService {
     // categoryId/typeId require a service row to filter on; Query B has none,
     // so skipping preserves filter semantics — orgs without services SHOULD
     // NOT pass a price filter).
-    const skipQueryB =
-      query.priceMin != null ||
-      query.priceMax != null ||
-      query.categoryId != null ||
-      query.typeId != null;
+    const skipQueryB = this.isServiceOnlyFilter(query);
 
     if (!skipQueryB) {
       const conditionsB: string[] = ['o."isActive" = true'];
@@ -754,6 +903,7 @@ export class SearchService {
       // Text-match clauses ONLY when q present. Without q, Query B becomes a
       // pure filter-by-geo/rating/orgCategory browse for orgs (with or
       // without services) in the requested radius.
+      const trgmIndexesB: number[] = [];
       if (query.q) {
         const variantsB = generateSearchVariants(query.q);
         const likeClausesB: string[] = [];
@@ -768,10 +918,21 @@ export class SearchService {
             OR oa."city" ILIKE $${pIdxB} OR oa."city" % $${pIdxB + 1}
           )`);
           paramsB.push(likeParam, trgmParam);
+          trgmIndexesB.push(pIdxB + 1);
           pIdxB += 2;
         }
         conditionsB.push(`(${likeClausesB.join(' OR ')})`);
       }
+
+      // Same scoring fields as Query A, minus the service columns Query B has no
+      // access to. Address and city are matched but never scored — see Query A.
+      const matchScoreB = this.buildScoreSql('word_similarity', trgmIndexesB, [
+        'o."name"',
+        'o."category"',
+      ]);
+      const nameScoreB = this.buildScoreSql('similarity', trgmIndexesB, [
+        'o."name"',
+      ]);
 
       if (query.rating != null) {
         // Same default-5 CASE expression as Query A's rating predicate.
@@ -849,7 +1010,9 @@ export class SearchService {
           oa."lon" AS "branchLon",
           oa."workTime" AS "branchWorkTime",
           oa."phone" AS "branchPhone",
-          ${distanceExprB} AS distance
+          ${distanceExprB} AS distance,
+          ${matchScoreB} AS "matchScore",
+          ${nameScoreB} AS "nameScore"
         FROM organizations o
         LEFT JOIN LATERAL (
           SELECT oa2.*
@@ -871,6 +1034,7 @@ export class SearchService {
         const key = `${r.orgId}::${r.branchId ?? 'no-branch'}`;
         if (groupMap.has(key)) continue;
 
+        recordScore(key, r);
         groupMap.set(key, {
           organization: {
             id: r.orgId,
@@ -910,25 +1074,29 @@ export class SearchService {
     // (a serviceless row still needs a branch to become a map pin), reading
     // from the local `seed_companies` copy.
     //
-    // Skipped on service-bound filters for the same reason as Query B, PLUS on
-    // `rating`: a seed row has no platform reviews, and Query B's
-    // "reviewCount = 0 -> treat as 5 stars" rule would otherwise let every seed
-    // company pass a "5 stars only" filter as a fake five-star business.
+    // Skipped on service-bound filters for the same reason as Query B.
     //
-    // Merged last and never overwrites an existing key, so partners always rank
-    // above non-partners — matching the legacy Convex catalog behaviour.
-    const skipQueryC =
-      query.priceMin != null ||
-      query.priceMax != null ||
-      query.categoryId != null ||
-      query.typeId != null ||
-      query.rating != null;
+    // NOT skipped on `rating` any more. This is a deliberate reversal, and it is
+    // worth being honest about what it costs: every seed company now passes every
+    // rating threshold, so the filter no longer discriminates between them. We
+    // accept that because the alternative is worse — the catalog card displays a
+    // flat 5.0 for a seed company, so filtering for 5 stars and getting nothing
+    // back is the interface contradicting itself. It also matches what Query B
+    // already does for review-less partner orgs ("no reviews -> treat as 5").
+    // The scraped `stars` column stays unused, by product decision.
+    //
+    // Merged last and never overwrites an existing key. With no text query that is
+    // the whole ranking rule — partners stay above non-partners, as in the legacy
+    // Convex catalog. When there IS a text query the merged list gets re-sorted by
+    // match score further down, and this insertion order becomes the tie-break.
+    const skipQueryC = this.isSeedExcluded(query);
 
     if (!skipQueryC) {
       const conditionsC: string[] = [];
       const paramsC: any[] = [];
       let pIdxC = 1;
 
+      const trgmIndexesC: number[] = [];
       if (query.q) {
         const variantsC = generateSearchVariants(query.q);
         const likeClausesC: string[] = [];
@@ -939,10 +1107,24 @@ export class SearchService {
             OR sc."place" ILIKE $${pIdxC} OR sc."place" % $${pIdxC + 1}
           )`);
           paramsC.push(`%${variant}%`, variant);
+          trgmIndexesC.push(pIdxC + 1);
           pIdxC += 2;
         }
         conditionsC.push(`(${likeClausesC.join(' OR ')})`);
       }
+
+      // The seed-company mirror of Query A/B's scoring: name plus category, the
+      // same "who is this and what do they do" pair. `sc` is seed_companies here.
+      // Address and place are matched but not scored, exactly as in A and B — this
+      // symmetry is the whole reason a seed company can be compared to a partner
+      // at all.
+      const matchScoreC = this.buildScoreSql('word_similarity', trgmIndexesC, [
+        'sc."name"',
+        'sc."category"',
+      ]);
+      const nameScoreC = this.buildScoreSql('similarity', trgmIndexesC, [
+        'sc."name"',
+      ]);
 
       if (query.orgCategory) {
         // `category` is stored pre-normalized to the enum form on import,
@@ -993,7 +1175,9 @@ export class SearchService {
           sc."phone" AS "seedPhone",
           sc."lat" AS "seedLat",
           sc."lon" AS "seedLon",
-          ${distanceExprC} AS distance
+          ${distanceExprC} AS distance,
+          ${matchScoreC} AS "matchScore",
+          ${nameScoreC} AS "nameScore"
         FROM seed_companies sc
         WHERE ${whereClauseC}
         ORDER BY ${orderByC}, sc."id"
@@ -1010,6 +1194,8 @@ export class SearchService {
         // branch.id to de-duplicate map markers, so it must be stable and unique.
         const key = `${r.seedId}::${r.seedId}`;
         if (groupMap.has(key)) continue;
+
+        recordScore(key, r);
 
         const phones = r.seedPhone ? [r.seedPhone] : null;
 
@@ -1050,7 +1236,7 @@ export class SearchService {
     // Default path (groupBy absent / not 'organization') — byte-identical to
     // pre-quick-260512-nvd behavior. One row per (org, branch) tuple.
     if (!isGroupByOrg) {
-      const allGroups = [...groupMap.values()];
+      const allGroups = this.rankByMatch(groupMap, scoreMap, query.q);
       // P3 fix: total comes from the dedicated COUNT query (computed before
       // the LIMIT-capped main fetch), not from the over-fetched groupMap.
       const total = realTotal;
@@ -1090,13 +1276,31 @@ export class SearchService {
     //   - Branchless orgs only emit if NO branched candidate exists for that org.
     const orgRepresentative = new Map<string, BranchResult>();
     const orgFirstSeenIndex = new Map<string, number>();
+    // An org's score is the best score across ALL its rows, not the score of
+    // whichever branch won the representative tie-break above — that one is picked
+    // by distance and branch id, which have nothing to do with the text query. Get
+    // this wrong and the same company lands on a different page in the grid than on
+    // the map, for the same search.
+    const orgScore = new Map<string, MatchScore>();
     let idx = 0;
-    for (const candidate of groupMap.values()) {
+    for (const [key, candidate] of groupMap.entries()) {
       const orgId = candidate.organization.id;
       if (!orgFirstSeenIndex.has(orgId)) {
         orgFirstSeenIndex.set(orgId, idx);
       }
       idx++;
+
+      const rowScore = scoreMap.get(key);
+      if (rowScore) {
+        const best = orgScore.get(orgId);
+        if (
+          !best ||
+          rowScore.match > best.match ||
+          (rowScore.match === best.match && rowScore.name > best.name)
+        ) {
+          orgScore.set(orgId, rowScore);
+        }
+      }
 
       const current = orgRepresentative.get(orgId);
       if (!current) {
@@ -1149,12 +1353,25 @@ export class SearchService {
     // Pass 2: emit representatives sorted by orgFirstSeenIndex (preserves
     // the SQL ORDER BY semantics — the org's first appearance dictates its
     // position in the output, regardless of which branch ended up as rep).
+    //
+    // With a text query, match score comes first and first-seen order becomes the
+    // tie-break — the same rule rankByMatch applies to the default path, expressed
+    // here in the terms this path already works in. Both paths must agree; a
+    // company cannot be on page 1 of the grid and page 32 of the map.
+    const zeroScore: MatchScore = { match: 0, name: 0 };
     const uniqueOrgs = [...orgRepresentative.entries()]
-      .sort(
-        (a, b) =>
-          (orgFirstSeenIndex.get(a[0]) ?? 0) -
-          (orgFirstSeenIndex.get(b[0]) ?? 0),
-      )
+      .sort(([orgA], [orgB]) => {
+        if (query.q) {
+          const a = orgScore.get(orgA) ?? zeroScore;
+          const b = orgScore.get(orgB) ?? zeroScore;
+          const byScore = b.match - a.match || b.name - a.name;
+          if (byScore !== 0) return byScore;
+        }
+        return (
+          (orgFirstSeenIndex.get(orgA) ?? 0) -
+          (orgFirstSeenIndex.get(orgB) ?? 0)
+        );
+      })
       .map(([, rep]) => rep);
 
     // P3 fix: total comes from the dedicated COUNT query (counts distinct

@@ -346,15 +346,13 @@ describe('SearchService — Query C (seed / non-partner companies)', () => {
     expect(services).toEqual([]);
   });
 
+  // Filters that need a service row to match against. A seed company has no
+  // services and no prices, so there is nothing there to filter on — it drops out.
   it.each([
     ['priceMin', { priceMin: 100 }],
     ['priceMax', { priceMax: 900 }],
     ['categoryId', { categoryId: 'cat-uuid' }],
     ['typeId', { typeId: 'type-uuid' }],
-    // A seed row has no platform reviews. Without this gate, Query B's
-    // "reviewCount = 0 -> 5 stars" rule would pass every seed company off as
-    // a five-star business.
-    ['rating', { rating: 4 }],
   ])('excludes seed companies when %s is applied', async (_name, filter) => {
     const res = await service.search({
       page: 1,
@@ -366,6 +364,56 @@ describe('SearchService — Query C (seed / non-partner companies)', () => {
     expect(res.data).toHaveLength(0);
     const countSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0] as string;
     expect(countSql).not.toMatch(/FROM seed_companies/i);
+  });
+
+  // Reverses an earlier decision, deliberately. Seed companies used to be dropped
+  // from any rating-filtered search, on the grounds that a review-less business
+  // would sail through a "5 stars only" filter as a fake five-star. True — but the
+  // catalog card now displays a flat 5.0 for them, so filtering for 5 and getting
+  // nothing back is the interface contradicting itself. The scraped `stars` column
+  // stays unused; 5.0 is what we show and 5.0 is what we filter on.
+  it.each([[5], [4], [3], [1]])(
+    'keeps seed companies when rating=%i is applied (they count as 5.0)',
+    async rating => {
+      const res = await service.search({
+        page: 1,
+        limit: 20,
+        rating,
+      } as SearchQueryDto);
+
+      expect(seedQueries()).toHaveLength(1);
+      expect(res.data).toHaveLength(1);
+      expect(res.data[0].organization.isPartner).toBe(false);
+    },
+  );
+
+  // The data path and the COUNT path read the same predicate. If they ever drift,
+  // `total` describes a different result set than the one it is attached to —
+  // pages come back short or empty, and nobody notices, because a lying total
+  // looks exactly like an honest one. That has already cost this service 54% of
+  // the Kyiv map.
+  it('counts seed companies under a rating filter, matching the data path', async () => {
+    await service.search({
+      page: 1,
+      limit: 20,
+      rating: 5,
+    } as SearchQueryDto);
+
+    const countSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0] as string;
+    expect(countSql).toMatch(/UNION[\s\S]*FROM seed_companies sc/i);
+  });
+
+  it('drops seed companies from BOTH paths when a service-bound filter applies', async () => {
+    await service.search({
+      page: 1,
+      limit: 20,
+      priceMin: 100,
+      rating: 5,
+    } as SearchQueryDto);
+
+    const countSql = mockPrisma.$queryRawUnsafe.mock.calls[0][0] as string;
+    expect(countSql).not.toMatch(/FROM seed_companies/i);
+    expect(seedQueries()).toHaveLength(0);
   });
 
   it('counts seed companies in total, so pagination does not lie', async () => {
@@ -389,6 +437,195 @@ describe('SearchService — Query C (seed / non-partner companies)', () => {
 
     expect(sql).toMatch(/sc\."category" = \$\d+/);
     expect(params).toContain('VET_CLINICS');
+  });
+});
+
+// Browsing the catalog is the partners' shelf space: with no text query the merge
+// order (A, then B, then C) is the whole ranking rule and partners stay on top.
+// Typing a name is a different question — the merge order used to bury the answer.
+// Measured on live dev data before this change: q="зоомагазин" returned 1126 rows,
+// 750 of them seed companies, and the first one sat at position 376. In the
+// results, absent from the product.
+describe('SearchService — match-score ranking (seed companies findable by name)', () => {
+  let service: SearchService;
+  let mockPrisma: {
+    $queryRawUnsafe: jest.Mock;
+    serviceVariation: { findMany: jest.Mock };
+  };
+
+  const isCountSql = (sql: string) =>
+    /SELECT\s+COUNT\(\*\)\s+AS\s+"total"/i.test(sql);
+  const isSeedDataSql = (sql: string) =>
+    /FROM seed_companies sc/i.test(sql) && !isCountSql(sql);
+  const isPartnerDataSql = (sql: string) =>
+    /FROM services s/i.test(sql) && !isCountSql(sql);
+
+  /** A partner scoring lower on the text than the seed company below it. */
+  const partnerRow = {
+    orgId: '22222222-2222-4222-8222-222222222222',
+    orgName: 'Зоотовари для тварин',
+    orgSlug: 'zootovary',
+    orgRating: 5,
+    orgReviewCount: 10,
+    branchId: '33333333-3333-4333-8333-333333333333',
+    branchLat: 50.45,
+    branchLon: 30.52,
+    serviceId: '44444444-4444-4444-8444-444444444444',
+    serviceName: 'Стрижка',
+    matchScore: 0.4,
+    nameScore: 0.2,
+  };
+
+  /** A seed company whose name IS the query. */
+  const seedRow = {
+    seedId: '11111111-1111-5111-8111-111111111111',
+    seedName: 'Лапка',
+    seedCategory: 'PET_STORES',
+    seedLat: 50.45,
+    seedLon: 30.52,
+    matchScore: 1,
+    nameScore: 1,
+  };
+
+  const routeSql = (sql: string) => {
+    if (isCountSql(sql)) return [{ total: BigInt(2) }];
+    if (isSeedDataSql(sql)) return [seedRow];
+    if (isPartnerDataSql(sql)) return [partnerRow];
+    return [];
+  };
+
+  beforeEach(() => {
+    mockPrisma = {
+      $queryRawUnsafe: jest.fn((sql: string) => Promise.resolve(routeSql(sql))),
+      // Query A pulls price variations for the service rows it found.
+      serviceVariation: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    service = new SearchService(
+      mockPrisma as any,
+      { getBreedersAvailability: () => Promise.resolve({}) } as any,
+      { warn: jest.fn() } as any,
+    );
+  });
+
+  it('ranks a better-matching seed company above a weaker-matching partner', async () => {
+    const res = await service.search({
+      q: 'Лапка',
+      page: 1,
+      limit: 20,
+    } as SearchQueryDto);
+
+    expect(res.data[0].organization.isPartner).toBe(false);
+    expect(res.data[0].organization.name).toBe('Лапка');
+    expect(res.data[1].organization.isPartner).toBe(true);
+  });
+
+  it('leaves partners on top when there is no text query', async () => {
+    const res = await service.search({ page: 1, limit: 20 } as SearchQueryDto);
+
+    expect(res.data[0].organization.isPartner).toBe(true);
+    expect(res.data[1].organization.isPartner).toBe(false);
+  });
+
+  it('applies the same ranking in groupBy=organization mode', async () => {
+    const res = await service.search({
+      q: 'Лапка',
+      page: 1,
+      limit: 20,
+      groupBy: 'organization',
+    } as SearchQueryDto);
+
+    // A company cannot be on page 1 of the grid and page 32 of the map.
+    expect(res.data[0].organization.isPartner).toBe(false);
+  });
+
+  it('scores in SELECT only — never in WHERE, ORDER BY or LIMIT', async () => {
+    await service.search({
+      q: 'Лапка',
+      page: 1,
+      limit: 20,
+    } as SearchQueryDto);
+
+    // The row cap's page-invariance and Query A's tie-break both depend on the
+    // SQL ordering staying exactly as it was. Ranking happens in JS, after merge.
+    // A score in ORDER BY would change which rows survive the cap; a score in
+    // WHERE would change which rows exist at all.
+    for (const [sql] of mockPrisma.$queryRawUnsafe.mock.calls as [string][]) {
+      const upper = sql.toUpperCase();
+      const orderBy = upper.lastIndexOf('ORDER BY');
+      const where = upper.lastIndexOf('WHERE');
+
+      if (orderBy >= 0) {
+        expect(sql.slice(orderBy)).not.toMatch(/word_similarity|matchScore/i);
+      }
+      if (where >= 0 && orderBy > where) {
+        expect(sql.slice(where, orderBy)).not.toMatch(/word_similarity/i);
+      }
+    }
+  });
+
+  it('does not compute a score when there is no text query', async () => {
+    await service.search({ page: 1, limit: 20 } as SearchQueryDto);
+
+    for (const [sql] of mockPrisma.$queryRawUnsafe.mock.calls as [string][]) {
+      expect(sql).not.toMatch(/word_similarity/i);
+    }
+  });
+
+  it('breaks a word-match tie by whole-string similarity', async () => {
+    // word_similarity hands out 1.0 generously: for q="Лапка", both "Лапка" and
+    // "Зоотовари «Лапка»" score exactly 1.0. Only the whole-string score separates
+    // them — without it the company actually called Лапка has no way to come first.
+    mockPrisma.$queryRawUnsafe = jest.fn((sql: string) => {
+      if (isCountSql(sql)) return Promise.resolve([{ total: BigInt(2) }]);
+      if (isSeedDataSql(sql)) return Promise.resolve([seedRow]);
+      if (isPartnerDataSql(sql))
+        return Promise.resolve([
+          {
+            ...partnerRow,
+            orgName: 'Зоотовари «Лапка»',
+            matchScore: 1,
+            nameScore: 0.38,
+          },
+        ]);
+      return Promise.resolve([]);
+    });
+
+    const res = await service.search({
+      q: 'Лапка',
+      page: 1,
+      limit: 20,
+    } as SearchQueryDto);
+
+    expect(res.data[0].organization.name).toBe('Лапка');
+  });
+
+  it('gives the partner an exact tie, so partner priority survives', async () => {
+    // 133 partner organisations are named literally "Зоомагазин", and so are 78
+    // seed companies — a perfect (1.0, 1.0) tie. Array.prototype.sort is stable by
+    // specification, so insertion order (A, then B, then C) decides, and the
+    // partner keeps the slot. That is the partner priority, preserved exactly
+    // where it costs the user nothing.
+    mockPrisma.$queryRawUnsafe = jest.fn((sql: string) => {
+      if (isCountSql(sql)) return Promise.resolve([{ total: BigInt(2) }]);
+      if (isSeedDataSql(sql))
+        return Promise.resolve([
+          { ...seedRow, seedName: 'Зоомагазин', matchScore: 1, nameScore: 1 },
+        ]);
+      if (isPartnerDataSql(sql))
+        return Promise.resolve([
+          { ...partnerRow, orgName: 'Зоомагазин', matchScore: 1, nameScore: 1 },
+        ]);
+      return Promise.resolve([]);
+    });
+
+    const res = await service.search({
+      q: 'Зоомагазин',
+      page: 1,
+      limit: 20,
+    } as SearchQueryDto);
+
+    expect(res.data[0].organization.isPartner).toBe(true);
+    expect(res.data[1].organization.isPartner).toBe(false);
   });
 });
 
