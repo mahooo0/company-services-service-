@@ -7,10 +7,15 @@
  * can UNION them with `organizations` in a single query (cross-database joins are
  * not possible in Postgres).
  *
- * Category is normalized on the way in: the source stores a category *slug*
- * ("vet-clinics"), while `organizations.category` — and therefore the `orgCategory`
- * filter — uses the enum form ("VET_CLINICS"). Normalizing at import time keeps the
- * query path free of translation logic.
+ * Two things are normalized on the way in, so the query path stays free of
+ * translation logic:
+ *
+ * - Category: the source stores a slug ("vet-clinics"), while
+ *   `organizations.category` — and therefore the `orgCategory` filter — uses the
+ *   enum form ("VET_CLINICS").
+ * - Phone: the source stores the scraped "(097) 374-1467", while `organizations`
+ *   stores E.164 ("+380951211212"). Both appear side by side in one /search
+ *   result. See `normalizeUaPhone` — a few unsalvageable numbers become null.
  *
  * Idempotent: re-running upserts by id and never duplicates rows.
  *
@@ -19,6 +24,8 @@
  *     pnpm exec ts-node --transpile-only prisma/seed-companies-import.ts
  */
 import { PrismaClient } from '@prisma/client';
+
+import { normalizeUaPhone } from '../src/common/utils/phone.utils';
 
 /** Source category slug → the category enum used by `organizations`. */
 const CATEGORY_BY_SLUG: Record<string, string> = {
@@ -54,6 +61,7 @@ function nullifyPlaceholder(value: string | null): string | null {
   const trimmed = value?.trim();
   return !trimmed || trimmed === '0' ? null : trimmed;
 }
+
 
 async function main(): Promise<void> {
   const sourceUrl = process.env.SOURCE_DATABASE_URL;
@@ -104,7 +112,7 @@ async function main(): Promise<void> {
           row.name,
           CATEGORY_BY_SLUG[row.slug],
           row.slug,
-          nullifyPlaceholder(row.phone),
+          normalizeUaPhone(row.phone),
           nullifyPlaceholder(row.address),
           nullifyPlaceholder(row.place),
           row.lat,
